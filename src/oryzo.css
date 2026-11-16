@@ -1820,7 +1820,10 @@
 
 /* Transparent so the floating coaster (drawn on the fixed canvas beneath) shows through. */
 .oryzo-page > section.oz-tm.oz-tm {
-  --col: calc((100vw - var(--oz-pad-x) * 2) / 16);
+  --inner: calc(100vw - var(--oz-pad-x) * 2);
+  --col: calc(var(--inner) / 16);
+  /* The original's type unit: scales with the width, capped on short screens. */
+  --unit: min(var(--inner) / 1800, 100vh / 1024 * 1.25);
   padding: 0 var(--oz-pad-x) 6vw;
   border-top: 0;
   background: transparent;
@@ -1835,9 +1838,9 @@
   position: absolute;
   left: 0;
   top: calc(var(--oz-pad-y) * 2 + 4.2vw);
-  width: calc(var(--col) * 6);
+  width: calc(var(--inner) * (6 / 20 + 5 / 75));
   margin: 0;
-  font-size: 3.54vw;
+  font-size: calc(68 * var(--unit));
   font-weight: 500;
   line-height: 0.9;
   text-transform: uppercase;
@@ -1849,13 +1852,13 @@
 
 .oryzo-page > section.oz-tm .oz-tm-desc {
   position: absolute;
-  left: calc(var(--col) * 11);
+  left: calc(var(--inner) * (11 / 20 + 11 / 75));
   top: 50%;
-  width: calc(var(--col) * 4.4);
+  width: calc(var(--inner) * (4 / 20 + 3 / 75));
   max-width: none;
   margin: 0;
   transform: translateY(-50%);
-  font-size: 1.98vw;
+  font-size: calc(38 * var(--unit));
   font-weight: 400;
   line-height: 1.263;
 }

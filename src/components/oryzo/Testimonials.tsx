@@ -74,20 +74,10 @@ export function Testimonials() {
         if (after) after.style.opacity = (0.2 + 0.8 * lit).toFixed(4);
       });
 
-      // Floating coaster: rises with this section, then tumbles until the product section arrives.
-      let animation = fit(offset, 0, 1, 0, 1);
-      let viewOffsetY = fit(offset, 0, 1, 1, 0);
-      let productOffset = -1;
-      const product = document.getElementById("product");
-      if (product) {
-        const productTop = product.getBoundingClientRect().top;
-        productOffset = (vh - productTop) / vh;
-        const span = (productTop - top) / vh;
-        if (span > 1) animation = fit(productOffset, -span + 1, 1, animation, 2);
-        viewOffsetY = fit(productOffset, -0.5, 0, viewOffsetY, -0.25);
-        viewOffsetY = fit(productOffset, 0, 1, viewOffsetY, 0);
-      }
-      stackState.active = offset > 0 && productOffset < 1;
+      // Floating coaster: rises with this section. The product section takes it over from there.
+      const animation = fit(offset, 0, 1, 0, 1);
+      const viewOffsetY = fit(offset, 0, 1, 1, 0);
+      stackState.active = offset > 0;
       stackState.animation = animation;
       stackState.viewOffsetY = viewOffsetY;
       stackState.clip = Math.min(1, offset);

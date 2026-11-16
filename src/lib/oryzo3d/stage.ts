@@ -126,6 +126,8 @@ const THERMAL_BLOOM: BloomSettings = {
 
 const WEARABLE_LIGHT = new THREE.Vector3(-10, -2, 6);
 const X_AXIS = new THREE.Vector3(1, 0, 0);
+const STACK_LIGHT = new THREE.Vector3(-1, 0.125, -0.5);
+const quartInOut = (t: number) => (t < 0.5 ? 8 * t * t * t * t : 1 - 8 * Math.pow(t - 1, 4));
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const DIAGONAL = new THREE.Vector3(1, 1, 1).normalize();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -244,6 +246,13 @@ export class OryzoStage {
   headline = { x: 0, y: 0, width: 0, height: 0, opacity: 0 };
 
   private cameraAnimation?: FrameAnimation;
+  /** Camera lift used when the floating coaster settles under the product title. */
+  private stackCamera?: FrameAnimation;
+  private coasterMesh?: THREE.Mesh;
+  /** The second and third coasters of the Pro and Pro Max stacks, with their fade-in uniforms. */
+  private stackExtras: { mesh: THREE.Mesh; opacity: { value: number } }[] = [];
+  private proRatio = 0;
+  private proMaxRatio = 0;
   private coasterAnimation?: FrameAnimation;
 
   private hand?: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
@@ -484,16 +493,37 @@ export class OryzoStage {
     u.uEnv2.value = env("hero/env_hand.webp");
     u.uBrdf.value = tex("brdf.png");
     this.coaster.add(this.coasterInner);
-    this.coasterInner.add(
-      new THREE.Mesh(
-        toGeometry(coasterData),
-        new THREE.ShaderMaterial({
-          uniforms: u,
-          vertexShader: coasterVertex,
-          fragmentShader: coasterFragment,
-        }),
-      ),
+    const coasterGeometry = toGeometry(coasterData);
+    this.coasterMesh = new THREE.Mesh(
+      coasterGeometry,
+      new THREE.ShaderMaterial({
+        uniforms: u,
+        vertexShader: coasterVertex,
+        fragmentShader: coasterFragment,
+      }),
     );
+    this.coasterInner.add(this.coasterMesh);
+    // Extra coasters for the stacked tiers: the same cork, able to fade in.
+    for (let i = 0; i < 2; i++) {
+      const opacity = { value: 0 };
+      const mesh = new THREE.Mesh(
+        coasterGeometry,
+        new THREE.ShaderMaterial({
+          uniforms: { ...u, uOpacity: opacity },
+          vertexShader: coasterVertex,
+          fragmentShader: coasterFragment
+            .replace("uniform float uDim;", "uniform float uDim;\n  uniform float uOpacity;")
+            .replace("vec3(1.0 / 2.2)), 1.0);", "vec3(1.0 / 2.2)), uOpacity);"),
+          transparent: true,
+        }),
+      );
+      mesh.visible = false;
+      this.coasterInner.add(mesh);
+      this.stackExtras.push({ mesh, opacity });
+    }
+    void loadBuf(MODEL_PATH + "stack_camera.buf").then((data) => {
+      this.stackCamera = new FrameAnimation(data);
+    });
 
     // Hand: skinned on the GPU from a baked per-bone position / orientation track.
     this.handPositions = floatAttribute(handAnimData, "position");
@@ -784,7 +814,7 @@ export class OryzoStage {
    * @param clear whether this is the only thing drawn this frame
    * @returns true when it drew
    */
-  private renderStack(clear: boolean) {
+  private renderStack(clear: boolean, dt = 0) {
     const state = stackState;
     if (!state.active || state.animation <= 0 || !this.cameraAnimation) return false;
     const { width, height } = this;
@@ -805,12 +835,36 @@ export class OryzoStage {
     inner.position.applyQuaternion(this.q0);
     inner.quaternion.premultiply(this.q0);
 
+    // Picking Pro or Pro Max lifts the coaster and fades more coasters in beneath it.
+    const settle = fit(animation, 2, 3, 0, 1);
+    this.proRatio = clamp01(this.proRatio + 2 * dt * (state.option >= 1 ? 1 : -1));
+    this.proMaxRatio = clamp01(this.proMaxRatio + 2 * dt * (state.option === 2 ? 0.8 : -1.2));
+    const stacked = fit(animation, 2.7, 3, 0, 1);
+    const pro = stacked * this.proRatio;
+    const proMax = stacked * this.proMaxRatio;
+    const thickness = 0.016;
+    const main = this.coasterMesh;
+    if (main) {
+      main.position.y = 0.35 * thickness * (quartInOut(pro) + quartInOut(proMax));
+      [pro, proMax].forEach((ratio, i) => {
+        const extra = this.stackExtras[i];
+        if (!extra) return;
+        extra.mesh.visible = ratio > 0;
+        extra.mesh.position.y =
+          main.position.y - thickness * (i + 1) - quartInOut(1 - ratio) * 0.005;
+        extra.opacity.value = quartInOut(ratio);
+      });
+    }
+
     const camera = this.camera;
     camera.position.set(0, 0, 0.45);
     camera.quaternion.identity();
+    if (this.stackCamera)
+      this.stackCamera.apply(camera, settle * (this.stackCamera.frameCount - 1));
     camera.fov = FOV;
     camera.zoom = 1;
-    camera.setViewOffset(width, height, 0, -state.viewOffsetY * height, width, height);
+    const viewOffsetY = state.viewOffsetY - 0.015 * pro - 0.015 * proMax;
+    camera.setViewOffset(width, height, 0, -viewOffsetY * height, width, height);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
     this.coaster.updateMatrixWorld();
@@ -832,6 +886,7 @@ export class OryzoStage {
     u.uDim.value = 1 - 0.75 * fit(animation, 0.5, 1.2, 1, 0);
     u.uLocalLight.value
       .set(0.346682, 1.00875, 0.368255)
+      .lerp(STACK_LIGHT, settle)
       .applyMatrix4(this.m0.copy(inner.matrixWorld).invert());
 
     this.coaster.visible = true;
@@ -849,6 +904,8 @@ export class OryzoStage {
     this.renderer.setScissorTest(true);
     this.renderer.getDrawingBufferSize(this.haloUniforms.uResolution.value);
     this.haloUniforms.uSize.value = Math.min(1, height / width);
+    // The glow slides up off the top of the screen as the coaster settles.
+    this.haloUniforms.uOffset.value.set(0.5, 1 + settle);
     this.renderer.render(this.haloScene, this.quadCamera);
     this.renderer.clearDepth();
     this.renderer.render(this.scene, camera);
@@ -1208,9 +1265,11 @@ export class OryzoStage {
     const bottom = this.track?.getBoundingClientRect().bottom ?? Infinity;
     this.stageShift = Math.max(0, vh - bottom);
     this.coasterUniforms.uDim.value = 1;
+    if (this.coasterMesh) this.coasterMesh.position.y = 0;
+    for (const extra of this.stackExtras) extra.mesh.visible = false;
     if (this.stageShift >= vh) {
       // Below the pinned stage only the floating coaster is drawn.
-      if (this.renderStack(true)) {
+      if (this.renderStack(true, dt)) {
         this.idle = false;
       } else if (!this.idle) {
         this.renderer.setRenderTarget(null);

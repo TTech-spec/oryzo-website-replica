@@ -110,12 +110,14 @@ const outlineVertex = /* glsl */ `
   }
 `;
 
+const TRAIL = 24;
 const outlineFragment = /* glsl */ `
+  #define TRAIL ${TRAIL}
   uniform vec3 uColor;
   uniform float uPeel;
   uniform float uPulse;
   uniform float uTime;
-  uniform vec3 uPointer;
+  uniform vec3 uTrail[TRAIL];
   uniform vec2 uViewport;
   varying float vX;
   varying float vCurve;
@@ -129,7 +131,12 @@ const outlineFragment = /* glsl */ `
     float l = 0.5 + uPulse * 2.0;
     float d = (1.0 - uPulse) * (1.0 + l) - vX - l;
     float pulse = smoothstep(-l, -0.0001, d) * smoothstep(0.0, -0.0001, d) * smoothstep(0.0, 0.2, uPulse);
-    float near = smoothstep(0.24, 0.07, distance(vPx, uPointer.xy) / uViewport.y) * uPointer.z;
+    // Lit along the fading trail the pointer leaves behind.
+    float near = 0.0;
+    for (int i = 0; i < TRAIL; i++) {
+      near = max(near, smoothstep(0.16, 0.04, distance(vPx, uTrail[i].xy) / uViewport.y) * uTrail[i].z);
+    }
+    near = smoothstep(0.1, 0.6, near);
     float alpha = max(pulse, near) * dash * (1.0 - vRadius);
     vec3 color = uColor * clamp(uPeel * 2.0 - 1.0 + vX, 0.0, 1.0);
     gl_FragColor = vec4(color, alpha);
@@ -288,10 +295,12 @@ export class SustainabilityScene {
     uPeel: this.titleUniforms.uPeel,
     uPulse: { value: 0 },
     uTime: { value: 0 },
-    /** Pointer in CSS pixels, with z = 1 while it is over the page. */
-    uPointer: { value: new THREE.Vector3() },
+    /** Recent pointer positions in CSS pixels; z is how strongly each still glows. */
+    uTrail: { value: Array.from({ length: TRAIL }, () => new THREE.Vector3()) },
   };
   private pulse = 0;
+  private trailHead = 0;
+  private trailLast = new THREE.Vector2(-1e4, -1e4);
   private barkUniforms = {
     uTexture: { value: null as THREE.Texture | null },
     uShow: { value: 0 },
@@ -425,11 +434,16 @@ export class SustainabilityScene {
     if (!sweeping && this.pulse >= 1) this.pulse = 0;
     this.outlineUniforms.uPulse.value = this.pulse;
     this.outlineUniforms.uTime.value += dt;
-    this.outlineUniforms.uPointer.value.set(
-      (pointer.x * 0.5 + 0.5) * width,
-      (0.5 - pointer.y * 0.5) * height,
-      pointerActive ? 1 : 0,
-    );
+    // Drop a glowing point wherever the pointer has moved on; all of them fade over about a second.
+    const trail = this.outlineUniforms.uTrail.value;
+    for (const point of trail) point.z = Math.max(0, point.z - dt * 0.9);
+    const px = (pointer.x * 0.5 + 0.5) * width;
+    const py = (0.5 - pointer.y * 0.5) * height;
+    if (pointerActive && Math.hypot(px - this.trailLast.x, py - this.trailLast.y) > height * 0.02) {
+      this.trailLast.set(px, py);
+      this.trailHead = (this.trailHead + 1) % TRAIL;
+      trail[this.trailHead]?.set(px, py, 1);
+    }
     const peel = Math.min(1, Math.max(0, t - 1));
     const cream = Math.min(1, Math.max(0, t - 2));
     this.camera.aspect = width / height;

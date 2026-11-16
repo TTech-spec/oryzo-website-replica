@@ -9,6 +9,7 @@
 @source "../src";
 @import "tw-animate-css";
 @import "./oryzo.css";
+@import "./oryzo-tail.css";
 
 @custom-variant dark (&:is(.dark *));
 

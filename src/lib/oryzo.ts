@@ -92,41 +92,85 @@ export const reviewCards = [
   },
 ] as const;
 
-export const campaignCards = [
+/** Posters on the horizontally scrolling social wall, in order. Sizes are in 1080-tall artboard pixels. */
+export const socialCards = [
+  { id: "edge", title: ["Runs on the edge", "Refuses the cloud"], notes: ["On-device."] },
+  { id: "sticker_1" },
   {
-    image: "/__l5e/assets-v1/f4fdb20b-53fa-41dd-960c-0c6e1aedd047/edge.webp",
-    eyebrow: "RUNS ON THE EDGE",
-    title: "On-device. Always on.",
-    note: "24/7 uptime. No power required.",
+    id: "always_on",
+    title: ["Always On"],
+    notes: ["24/7 UPTIME. No power required."],
+    cover: true,
+  },
+  { id: "color" },
+  {
+    id: "3090",
+    title: ["Runs on RTX 3090"],
+    notes: ["No More OOM on any consumer GPUs"],
+    cover: true,
+  },
+  { id: "perfect", notes: ["Perfect By Design"] },
+  {
+    id: "drop_test",
+    title: ["Drop-Tested"],
+    notes: ["Test conditions: hard surface", "DATE: 02/29/2026", "Damage: The Floor ;)"],
+    cover: true,
+  },
+  { id: "sticker_2" },
+  {
+    id: "legacy_support",
+    title: ["Legacy Support"],
+    notes: ["Supporting backward compatibility since the 5th millennium BCE"],
+  },
+] as const satisfies readonly {
+  id: string;
+  title?: readonly string[];
+  notes?: readonly string[];
+  cover?: boolean;
+}[];
+
+/** The three tiers of the product chooser and comparison table. */
+export const productTiers = [
+  {
+    name: "ORYZO",
+    description:
+      "The original. Refined until it feels inevitable. Lifts just enough, grips just right, and quietly disappears into your day like it was never there.",
+    extras: ["Single layer lift", "Natural cork insulation", "Stable grip on everyday surfaces"],
+    tagline: "One coaster. One job. Done beautifully.",
+    stack: "1",
+    lift: "1 coaster thick",
+    bestFor: "Daily mugs and quiet desks",
   },
   {
-    image: "/__l5e/assets-v1/7058a325-cc0a-4bd6-bcd6-c8018c2971ba/packaging.webp",
-    eyebrow: "LEGACY SUPPORT",
-    title: "Good stickers. Better cork.",
-    note: "Supporting backward compatibility since the 5th millennium BCE.",
+    name: "ORYZO Pro",
+    description:
+      "A little more presence. Double the cork, double the confidence - without losing the plot.",
+    extras: ["Double stack lift", "More mass, more steadiness", "Designed to be stardout"],
+    tagline: "Twice the cork. Twice the commitment. Still effortless.",
+    stack: "2",
+    lift: "2 coasters thick",
+    bestFor: "Taller cups and extra stability",
   },
   {
-    image: "/__l5e/assets-v1/27e58f23-957a-4341-a045-ac754885f528/always_on.webp",
-    eyebrow: "POWERED BY NOTHING",
-    title: "Refuses the cloud.",
-    note: "No compute. No tokens. No charging cable.",
+    name: "ORYZO Pro Max",
+    description:
+      "Maximum stack for maximum unnecessary satisfaction. A bold little pedestal for your mug and a quiet flex for the whole desk.",
+    extras: [
+      "Triple stack lift",
+      "Extra insulation by design",
+      "Deployable on RTX 3090, on device",
+    ],
+    tagline: "Three layers of confidence. For people who like their coffee slightly above it all.",
+    stack: "3",
+    lift: "3 coasters thick",
+    bestFor: "Maximum lift and maximum presence",
   },
-  {
-    image: "/__l5e/assets-v1/c85a312c-6496-42fc-ae71-bdec450a40cc/workstation.webp",
-    eyebrow: "LOCAL DEPLOYMENT",
-    title: "Runs on RTX 3090.",
-    note: "No more OOM on consumer GPUs.",
-  },
-  {
-    image: "/__l5e/assets-v1/48df4f39-39f8-4ac9-ae12-30beed386e14/drop_test.webp",
-    eyebrow: "PERFECT BY DESIGN",
-    title: "Drop-tested.",
-    note: "Test conditions: hard surface. Damage: the floor ;)",
-  },
-  {
-    image: "/__l5e/assets-v1/e0926838-49ae-4952-8f8b-7811472cfffa/legacy.webp",
-    eyebrow: "A TABLE, AT REST",
-    title: "Spill politely discouraged.",
-    note: "One little circle between your mug and the whole table.",
-  },
+] as const;
+
+/** Rows every tier shares in the comparison table. */
+export const productSharedSpecs = [
+  ["Material", "Cork"],
+  ["Connectivity", "None"],
+  ["Pairing", "Not Required"],
+  ["Updates", "Never"],
 ] as const;

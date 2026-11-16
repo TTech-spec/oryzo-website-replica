@@ -19,7 +19,10 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Grip close-up**: the camera drops to the cork's edge, a monochrome close-up photograph takes over, and a draggable microscope window shows the texture with a live friction reading.
 - **Sustainability**: a top-down slab of cork-oak bark splits along its seam and rolls back like a peel, revealing the title (drawn from the original's vector outline) glowing on dark ground. The ground then turns cream under swaying leaf shadow, and three fact cards follow with their Rive animations, their text fading in letter by letter. Moving the mouse over the title sends dashes running around the nearby letters.
 - **Testimonials**: "People all around the world love Oryzo" with a table of five reviews. Each row lights up letter by letter as it reaches the middle of the screen and dims as it leaves, while the coaster floats and tumbles behind the reviews on a warm glow.
-- **Remaining sections** (social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Social wall**: nine posters wipe open, then travel sideways as you scroll, each picture drifting inside its frame.
+- **Product tiers**: "Choose you own ORYZO". The floating coaster stops tumbling and lies down under the wordmark while the camera lifts; the three tier buttons pop in, and choosing Pro or Pro Max stacks a second and third coaster beneath it. A comparison table follows.
+- **ORYZO-1 paper** and **footer**: the open-weight model write-up with its BibTeX block, then the closing reveal, contact and social links. "Copy URL" works; the newsletter form only validates, because this practice build has no mailing list behind it.
+- **Not built**: the footer's 3D coffee-bean scene, the red sketches that float around the product coaster, the big 3D water bear, and the original's hover "flip" effect on buttons.
 
 ## Tech stack
 
@@ -43,6 +46,10 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/components/oryzo/GripLayer.tsx` | Grip copy, cork backdrop and microscope window markup |
 | `src/lib/oryzo3d/gripView.ts` | Grip backdrop, drag and microscope drawing |
 | `src/components/oryzo/SustainabilityLayer.tsx` | Sustainability copy and the fact cards |
+| `src/components/oryzo/SocialWall.tsx` | Horizontally scrolling posters |
+| `src/components/oryzo/ProductTiers.tsx` | Tier chooser, comparison table and the coaster's settle and stack control |
+| `src/components/oryzo/ModelPaper.tsx`, `SiteFooter.tsx` | ORYZO-1 write-up and footer |
+| `src/oryzo-tail.css` | Grid, type scale and layout for the sections below the testimonials |
 | `src/components/oryzo/Testimonials.tsx` | Review table and the scroll control for the floating coaster |
 | `src/components/oryzo/Chars.tsx` | Splits text into letters for letter-by-letter reveals |
 | `src/lib/oryzo3d/stackState.ts` | Shared state for the coaster that floats behind the page sections |
@@ -57,7 +64,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/wrapper.ts` | Foil wrapper tear driven by a baked animation texture |
 | `src/lib/oryzo3d/handRig.ts` | Finger joints rebuilt from the baked skinning data |
 | `src/lib/oryzo3d/buf.ts` | Decoder for the `.buf` geometry and animation files |
-| `src/lib/oryzo.ts` | Tier, testimonial and campaign data |
+| `src/lib/oryzo.ts` | Tier, testimonial and social wall data |
 | `src/oryzo.css` | Page styles |
 | `public/oryzo/` | Models, textures and images used by the stage |
 
