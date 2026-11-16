@@ -1,0 +1,193 @@
+import { useEffect, useRef, useState } from "react";
+
+import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
+
+const TITLE = "Powered by AI";
+const PRE_TITLE = ["isn’t just", "a coaster."];
+
+export function OryzoLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 809 174" role="img" aria-label="Oryzo">
+      <path
+        fill="currentColor"
+        d="M87 174.007C36 174.007 0 132.007 0 87.007C0 42.007 36 0.00697267 87 0.00697267C138 0.00697267 174 42.007 174 87.007C174 132.007 138 174.007 87 174.007ZM87 135.007C112 135.007 135 114.988 135 87.007C135 59.0264 112 39.007 87 39.007C62 39.007 39 59.0264 39 87.007C39 114.988 62 135.007 87 135.007Z"
+      />
+      <path
+        fill="currentColor"
+        d="M196.21 170.007V3.64971H263.618C307.624 3.64971 327.21 27.5604 327.21 60.6284C327.21 84.0304 317.29 103.108 295.923 112.011L333.315 170.007H284.476L254.969 117.861H237.418V170.007H196.21ZM237.418 79.7061H264.126C280.66 79.7061 285.493 71.5663 285.493 60.6284C285.493 49.6905 280.66 41.8051 264.126 41.8051H237.418V79.7061Z"
+      />
+      <path
+        fill="currentColor"
+        d="M385.705 170.007V101.073L324.911 3.64971H373.495L406.309 62.1546L439.122 3.64971H486.689L426.913 99.8012V170.007H385.705Z"
+      />
+      <path
+        fill="currentColor"
+        d="M490.688 170.007V133.124L567.762 41.8051H494.503V3.64971H619.907V40.5333L542.834 131.852H622.451V170.007H490.688Z"
+      />
+      <path
+        fill="currentColor"
+        d="M722 174C671 174 635 132 635 87C635 42 671 0 722 0C773 0 809 42 809 87C809 132 773 174 722 174ZM722 135C747 135 770 114.981 770 87C770 59.0194 747 39 722 39C697 39 674 59.0194 674 87C674 114.981 697 135 722 135Z"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The pinned opening sequence: desk hero -> "isn't just a coaster" -> "Powered by AI".
+ * A single WebGL stage sits behind the copy; everything is driven by scroll position
+ * measured in viewport heights (r), the same unit the baked camera animation uses.
+ */
+export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const root = rootRef.current;
+    if (!canvas || !root) return;
+    let stage: OryzoStage | undefined;
+    let cancelled = false;
+    let lastHero = -1;
+
+    const applyFrame = ({ r, heroActive }: StageFrame) => {
+      const set = (name: string, value: number) => root.style.setProperty(name, value.toFixed(4));
+      set("--hero", heroActive);
+      if (heroActive !== lastHero) {
+        lastHero = heroActive;
+        document.documentElement.style.setProperty("--oz-hero", heroActive.toFixed(4));
+      }
+      // "Isn't just a coaster" slides in from the sides, holds, then drifts out.
+      const preIn = fit(r, 0.5, 1.25, 0, 1);
+      const preOut = fit(r, 2.75, 3.5, 0, 1);
+      set("--pre", preIn * (1 - preOut));
+      set("--pre-x", fit(r, 0.5, 2, -1, 0, cubicOut) + fit(r, 2, 3.5, 0, 1, cubicIn));
+      // "Powered by AI" reveals letter by letter.
+      set("--title", fit(r, 4, 5, 0, 1) * fit(r, 8, 8.75, 1, 0));
+      set("--title-out", fit(r, 8, 8.75, 0, 1));
+      set("--desc", fit(r, 4.5, 5.5, 0, 1) * fit(r, 7.5, 8.5, 1, 0));
+      set("--hint", fit(r, 5.5, 6, 0, 1) * fit(r, 7.5, 8, 1, 0));
+      set("--note", fit(r, 1, 2, 0, 1) * fit(r, 8, 9, 1, 0));
+      set("--glow", fit(r, 5.5, 6, 0, 1) * fit(r, 7.5, 8, 1, 0));
+      set("--warm", fit(r, 3.5, 5.5, 0, 1));
+      root.dataset["phase"] = heroActive > 0 ? "hero" : "ai";
+    };
+
+    void import("@/lib/oryzo3d/stage").then(({ OryzoStage }) => {
+      if (cancelled) return;
+      stage = new OryzoStage(canvas);
+      stage.onFrame = applyFrame;
+      stage.onReady = () => setReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+      stage?.dispose();
+    };
+  }, []);
+
+  return (
+    <section className="oz-stage-track" id="intro" ref={rootRef} data-ready={ready}>
+      <div className="oz-stage">
+        <div className="oz-stage-bg" aria-hidden="true" />
+        <canvas className="oz-stage-canvas" ref={canvasRef} aria-hidden="true" />
+        <div className="oz-stage-glow" aria-hidden="true" />
+
+        <div className="oz-hero">
+          <p className="oz-hero-tagline">Made for mugs. Built for tables.</p>
+          <OryzoLogo className="oz-hero-logo" />
+          <p className="oz-hero-copy">
+            Designed to lift, insulate, and grip in all the right ways. Oryzo makes the simplest
+            moment feel considered.
+          </p>
+          <div className="oz-hero-card">
+            <h4>
+              Designed
+              <br />
+              by Lusion,
+              <br />
+              the award-winning
+              <br />
+              design studio.
+            </h4>
+            <div>
+              <span className="oz-dashline" />
+              <p>
+                The world&apos;s most
+                <br />
+                unnecessarily
+                <br />
+                sophisticated cork coaster.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="oz-hero-video"
+            onClick={onPlayFilm}
+            aria-label="Play the Oryzo film"
+          >
+            <img src="/oryzo/images/video_thumb.webp" alt="" width={320} height={180} />
+            <span>Play</span>
+          </button>
+          <div className="oz-scroll-hint">
+            <span className="oz-scroll-hint-icon" aria-hidden="true" />
+            Scroll to continue
+          </div>
+        </div>
+
+        <div className="oz-ai">
+          <div className="oz-ai-pre">
+            <h2>
+              {PRE_TITLE.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </h2>
+            <p>Oryzo isn’t just a coaster. It’s the result of unprecedented AI* breakthroughs.</p>
+          </div>
+
+          <div className="oz-ai-header">
+            <h1 aria-label="Powered by AI*">
+              {TITLE.split("").map((char, index) => (
+                <span
+                  key={index}
+                  aria-hidden="true"
+                  style={{ "--n": (index / (TITLE.length - 1)).toFixed(3) } as React.CSSProperties}
+                >
+                  {char === " " ? " " : char}
+                </span>
+              ))}
+              <sup aria-hidden="true">*</sup>
+            </h1>
+            <span className="oz-ai-tagline">Oryzo-1</span>
+          </div>
+
+          <div className="oz-ai-hint">
+            <span className="oz-ai-hint-icon" aria-hidden="true">
+              ✋
+            </span>
+            <span className="oz-dashline" />
+            <span>Try to hover hand</span>
+          </div>
+
+          <p className="oz-ai-desc">
+            AI fills in the gaps.
+            <br />
+            We said high five.
+            <br />
+            It heard six.
+          </p>
+
+          <div className="oz-ai-note">
+            <span className="oz-dashline" />
+            <span>
+              * Adobe
+              <br />
+              Illustrator
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

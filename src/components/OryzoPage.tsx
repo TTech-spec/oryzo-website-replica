@@ -1,21 +1,8 @@
 import { useState } from "react";
-import {
-  ArrowDown,
-  ArrowUpRight,
-  Check,
-  ChevronDown,
-  Copy,
-  MoveDown,
-  Pause,
-  Play,
-  RotateCcw,
-  Send,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { ArrowDown, ArrowUpRight, Check, Copy, MoveDown, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useMemo } from "react";
 import heroImage from "@/assets/oryzo-hero.jpg";
-import videoThumbnail from "@/assets/oryzo/video_thumb.webp.asset.json";
+import { IntroStage, OryzoLogo } from "@/components/oryzo/IntroStage";
 import { Button } from "@/components/ui/button";
 import { campaignCards, coasterModels, flipMessage, reviewCards } from "@/lib/oryzo";
 
@@ -46,6 +33,8 @@ const features = [
   },
 ];
 
+const FILM_URL = "https://player.vimeo.com/video/1174820580?h=5aaa6219d2&autoplay=1";
+
 const cardImage = (filename: string) => `/__l5e/assets-v1/${filename}`;
 
 export function OryzoPage() {
@@ -60,7 +49,7 @@ export function OryzoPage() {
     () => (isEncoded ? flipMessage(message) : message),
     [isEncoded, message],
   );
-  const model = coasterModels[selectedModel];
+  const model = coasterModels[selectedModel] ?? coasterModels[0]!;
 
   const handleCopyUrl = async () => {
     try {
@@ -74,84 +63,20 @@ export function OryzoPage() {
 
   return (
     <main className="oryzo-page">
-      <header className="oryzo-nav">
-        <a className="oryzo-wordmark" href="#intro" aria-label="Oryzo home">
-          ORYZO<span>®</span>
+      <header className="oz-header">
+        <a className="oz-header-logo" href="#intro" aria-label="Oryzo home">
+          <OryzoLogo />
         </a>
-        <nav aria-label="Main navigation">
+        <nav className="oz-nav" aria-label="Main navigation">
           <a href="#intro">Intro</a>
           <a href="#features">Features</a>
           <a href="#product">Product</a>
           <a href="#contact">Contact</a>
         </nav>
       </header>
+      <a className="oz-model-tab" href="#model">Oryzo-1 Model</a>
 
-      <section className="oryzo-intro" id="intro">
-        <div className="intro-topline">
-          <span>AN OBJECT OF UNNECESSARY PRECISION</span>
-          <span>DESIGNED BY LUSION®</span>
-        </div>
-        <div className="intro-copy">
-          <p className="section-kicker"><span className="status-dot" /> The everyday, reconsidered</p>
-          <h1>Made for mugs.<br />Built for <span>tables.</span></h1>
-          <div className="intro-description">
-            <p>Designed to lift, insulate, and grip in all the right ways. Oryzo makes the simplest moment feel considered.</p>
-            <a href="#features" className="text-link">MEET YOUR NEW COASTER <ArrowDown aria-hidden="true" /></a>
-          </div>
-        </div>
-        <div className="intro-image-frame">
-          <img className="intro-image" src={heroImage} alt="Sculptural natural cork Oryzo coaster" width={1104} height={1408} fetchPriority="high" />
-          <span className="image-index">FIG. 001 <span>·</span> ORYZO, IN ITS NATURAL HABITAT</span>
-          <span className="image-crosshair" aria-hidden="true">+</span>
-        </div>
-        <div className="intro-bottomline">
-          <span>THE WORLD’S MOST UNNECESSARILY<br />SOPHISTICATED CORK COASTER.</span>
-          <a href="#film" className="film-cta" onClick={(event) => { event.preventDefault(); setShowFilm(true); }}>
-            <span className="play-circle"><Play aria-hidden="true" fill="currentColor" /></span>
-            <span>MEET ORYZO<br /><small>A VERY SHORT FILM</small></span>
-          </a>
-          <span>01 / MADE TO BE<br />TAKEN SERIOUSLY*</span>
-        </div>
-        <div className="intro-studio">
-          <span>DESIGNED BY LUSION,</span>
-          <span>THE AWARD-WINNING</span>
-          <span>DESIGN STUDIO.</span>
-          <a href="#contact" aria-label="Meet Lusion"><ArrowUpRight aria-hidden="true" /></a>
-        </div>
-      </section>
-
-      <section className="manifesto" aria-labelledby="manifesto-title">
-        <div className="manifesto-index">A NOTE ON THE COASTER</div>
-        <div className="manifesto-layout">
-          <div>
-            <p className="section-kicker"><span className="status-dot" /> A breakthrough in staying put</p>
-            <h2 id="manifesto-title">Isn’t just<br />a coaster<span>.</span></h2>
-          </div>
-          <div className="manifesto-aside">
-            <div className="manifesto-rings" aria-hidden="true"><i /><i /><i /></div>
-            <p>Oryzo isn’t just a coaster. It’s the result of unprecedented AI* breakthroughs.</p>
-            <small>* ARTISANAL INTUITION. ABSOLUTELY NO COMPUTE.</small>
-          </div>
-        </div>
-        <figure className="film-strip" id="film">
-          <div className="film-picture">
-            <img src={videoThumbnail.url} alt="A short film introducing Oryzo" width={1280} height={720} loading="lazy" />
-            <span className="film-caption">A LUSION MOTION STUDY <i /> 00:24</span>
-          </div>
-          <figcaption>
-            <span>THE WORLD’S MOST UNNECESSARILY<br />SOPHISTICATED CORK COASTER.</span>
-            <Button variant="oryzo-ghost" size="icon" aria-label="Open the Oryzo film" onClick={() => setShowFilm(true)}><Play aria-hidden="true" fill="currentColor" /></Button>
-          </figcaption>
-        </figure>
-      </section>
-
-      <section className="ai-interlude" aria-label="Oryzo AI demonstration">
-        <div className="ai-interlude-head"><span className="section-kicker"><span className="status-dot" /> A very small language model</span><span>POWERED BY AI* · ORYZO-1</span></div>
-        <h2>Powered by <span>AI</span><sup>*</sup></h2>
-        <div className="ai-coaster" aria-hidden="true"><div className="ai-coaster-ring"><span>ORYZO — ON-DEVICE — NO CLOUD — O R Y Z O</span></div></div>
-        <p className="ai-whisper">* THE ‘A’ STANDS FOR A COASTER.</p>
-        <div className="ai-interlude-foot"><span>INTELLIGENCE WITHOUT THE INTERNET.</span><span>MODEL SIZE: ONE (1) COASTER.</span></div>
-      </section>
+      <IntroStage onPlayFilm={() => setShowFilm(true)} />
 
       <section className="features-section" id="features">
         <div className="section-heading">
@@ -187,7 +112,7 @@ export function OryzoPage() {
             <div className="encryption-tool-head"><span>ORYZO ENCRYPTION SYSTEM™</span><span className="tool-live"><span className="status-dot" /> ON DEVICE</span></div>
             <label className="encryption-label" htmlFor="oryzo-message">YOUR MESSAGE</label>
             <textarea id="oryzo-message" maxLength={120} placeholder="Type something worth protecting…" value={shownMessage} onChange={(event) => { setMessage(isEncoded ? flipMessage(event.target.value) : event.target.value); }} />
-            <div className="encryption-tool-bottom"><span>{message.length}/120 · ALGORITHM: REVERSE</span><Button variant="oryzo-orange" size="sm" onClick={() => setIsEncoded((current) => !current)}>{isEncoded ? <><RotateCcw aria-hidden="true" /> Decode message</> : <><MoveDown aria-hidden="true" /> Encode message</>}</Button></div>
+            <div className="encryption-tool-bottom"><span>{message.length}/120 · ALGORITHM: REVERSE</span><Button variant="default" size="sm" onClick={() => setIsEncoded((current) => !current)}>{isEncoded ? <><RotateCcw aria-hidden="true" /> Decode message</> : <><MoveDown aria-hidden="true" /> Encode message</>}</Button></div>
           </div>
         </div>
       </section>
@@ -219,7 +144,7 @@ export function OryzoPage() {
 
       <section className="product-section" id="product">
         <div className="product-intro"><div><p className="section-kicker"><span className="status-dot" /> Meet the family</p><h2>Choose your<br /><span>own Oryzo.</span></h2></div><p>Three thoughtfully excessive expressions of the same very useful circle.</p></div>
-        <div className="product-selector" role="tablist" aria-label="Choose an Oryzo model">{coasterModels.map((item, index) => <Button key={item.name} role="tab" aria-selected={selectedModel === index} variant={selectedModel === index ? "oryzo-tab-active" : "oryzo-tab"} onClick={() => setSelectedModel(index)}><span>0{index + 1}</span>{item.name}{index === 1 && <i>NEW</i>}</Button>)}</div>
+        <div className="product-selector" role="tablist" aria-label="Choose an Oryzo model">{coasterModels.map((item, index) => <Button key={item.name} role="tab" aria-selected={selectedModel === index} variant={selectedModel === index ? "default" : "outline"} onClick={() => setSelectedModel(index)}><span>0{index + 1}</span>{item.name}{index === 1 && <i>NEW</i>}</Button>)}</div>
         <div className={`product-stage product-stage-${selectedModel + 1}`}>
           <div className="product-stage-copy"><span className="product-stage-tag">{model.tag}</span><h3>{model.name}</h3><p>{model.description}</p><span className="product-stage-count">STACK: 0{model.stack} <i>·</i> LIFT: {model.lift.toUpperCase()}</span></div>
           <div className="product-stack-illustration" aria-label={`${model.name}: ${model.stack} cork coaster${model.stack > 1 ? "s" : ""} stacked`}>
@@ -234,7 +159,7 @@ export function OryzoPage() {
         <div className="product-disclaimer"><span><Volume2 aria-hidden="true" /> MADE WITH WOOD, NOT WEIGHTS.</span><span>NO PRODUCT IS ACTUALLY FOR SALE.</span></div>
       </section>
 
-      <section className="paper-section">
+      <section className="paper-section" id="model">
         <div className="paper-heading"><p className="section-kicker"><span className="status-dot" /> Our SOTA open weight model</p><h2>Oryzo-1.<br /><span>Open-source-ish.</span></h2><p>A technically unnecessary study of a technically necessary coaster.</p></div>
         <div className="paper-content"><div className="paper-meta"><span>ORYZO RESEARCH DIVISION</span><span>ARXIV-STYLE NONSENSE · 2026</span><span>OPEN WEIGHT · 01 COASTER</span></div><h3>Oryzo-1: an open-weight 3D model of a cork coaster for rendering, simulation, and gloriously unnecessary research.</h3><div className="paper-rule" /><div className="paper-columns"><div><span className="paper-label">ABSTRACT</span><p>We present Oryzo-1, an open-weight 3D model of a cork coaster for rendering, simulation, and gloriously unnecessary research. Oryzo-1 faithfully reproduces key coaster behaviors — table protection, perfect circularity, and passive thermal moderation under everyday beverage conditions. Released in clean OBJ format with baseline results on our own WoodenBench (a standardized evaluation suite conducted on a single desk and very possibly rigged by us). Limitations include heavy dependency on gravity, mugs, and human deployment.</p></div><div><span className="paper-label">ACKNOWLEDGEMENTS</span><p>This website was single-shot espresso’d into existence by the creative team at Lusion.</p><span className="paper-label paper-reviewer">PEER REVIEW</span><p>“Oryzo-1 A0B is the best model out there. Trust me bro.”<br /><span>— Anonymous LocalLLaMA Reddit user</span></p></div></div><div className="paper-rule" /><div className="paper-citation"><span>BIBTEX</span><code>{`@misc{oryzo2026,\n  title   = {Oryzo-1: Open-Weight Coaster Model},\n  author  = {Lusion},\n  year    = {2026},\n  format  = {OBJ release},\n  note    = {Code: coming soon.}\n}`}</code></div><div className="paper-links"><a href="#product">PAPER <ArrowUpRight aria-hidden="true" /></a><a href="#product">MODEL (.OBJ) <ArrowUpRight aria-hidden="true" /></a><span>CODE COMING SOON</span></div></div>
       </section>
@@ -242,11 +167,18 @@ export function OryzoPage() {
       <footer className="oryzo-footer" id="contact">
         <div className="footer-warning"><span>WE CAUGHT YOUR ATTENTION WITH A NON-EXISTENT PRODUCT.</span><span>IF WE CAN SELL A COASTER,</span><span>IMAGINE WHAT WE CAN DO FOR YOUR BRAND.</span></div>
         <a className="lusion-link" href="https://lusion.co/" target="_blank" rel="noreferrer">LUSION.CO <ArrowUpRight aria-hidden="true" /></a>
-        <div className="footer-main"><div className="footer-brand"><a href="#intro" className="oryzo-wordmark">ORYZO<span>®</span></a><span>BUILT BY LUSION<br />WITH LOVE<span className="footer-heart"> ♥</span></span></div><div className="footer-share"><span>SHARE WITH FRIENDS<br />IF YOU LIKE IT</span><Button variant="oryzo-outline" size="sm" onClick={handleCopyUrl}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "COPIED" : "COPY URL"}</Button></div><div className="footer-contact"><span>NEW BUSINESS</span><a href="mailto:business@lusion.co">BUSINESS@LUSION.CO <ArrowUpRight aria-hidden="true" /></a><span>GENERAL ENQUIRIES</span><a href="mailto:hello@lusion.co">HELLO@LUSION.CO <ArrowUpRight aria-hidden="true" /></a></div><div className="footer-social"><a href="https://x.com/" target="_blank" rel="noreferrer">X <ArrowUpRight aria-hidden="true" /></a><a href="https://instagram.com/" target="_blank" rel="noreferrer">INSTAGRAM <ArrowUpRight aria-hidden="true" /></a><a href="https://linkedin.com/" target="_blank" rel="noreferrer">LINKEDIN <ArrowUpRight aria-hidden="true" /></a></div></div>
+        <div className="footer-main"><div className="footer-brand"><a href="#intro" className="oryzo-wordmark">ORYZO<span>®</span></a><span>BUILT BY LUSION<br />WITH LOVE<span className="footer-heart"> ♥</span></span></div><div className="footer-share"><span>SHARE WITH FRIENDS<br />IF YOU LIKE IT</span><Button variant="outline" size="sm" onClick={handleCopyUrl}>{copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied ? "COPIED" : "COPY URL"}</Button></div><div className="footer-contact"><span>NEW BUSINESS</span><a href="mailto:business@lusion.co">BUSINESS@LUSION.CO <ArrowUpRight aria-hidden="true" /></a><span>GENERAL ENQUIRIES</span><a href="mailto:hello@lusion.co">HELLO@LUSION.CO <ArrowUpRight aria-hidden="true" /></a></div><div className="footer-social"><a href="https://x.com/" target="_blank" rel="noreferrer">X <ArrowUpRight aria-hidden="true" /></a><a href="https://instagram.com/" target="_blank" rel="noreferrer">INSTAGRAM <ArrowUpRight aria-hidden="true" /></a><a href="https://linkedin.com/" target="_blank" rel="noreferrer">LINKEDIN <ArrowUpRight aria-hidden="true" /></a></div></div>
         <div className="footer-foot"><span>© ORYZO™ 2026</span><span>TERMS & CONDITIONS</span><span>PRIVACY POLICY</span><p>THIS ENTIRE SITE IS A FICTIONAL CREATIVE PROJECT BY LUSION. ORYZO DOESN’T EXIST. NO PRODUCTS ARE FOR SALE. ALL CLAIMS ARE SATIRICAL AND FOR ENTERTAINMENT PURPOSES ONLY.</p><span>01—∞</span></div>
       </footer>
 
-      {showFilm && <div className="film-dialog-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setShowFilm(false); }}><div className="film-dialog" role="dialog" aria-modal="true" aria-labelledby="film-dialog-title"><Button variant="oryzo-ghost" size="icon" className="film-dialog-close" aria-label="Close film" onClick={() => setShowFilm(false)}><ChevronDown aria-hidden="true" /></Button><img src={videoThumbnail.url} alt="A still from the Oryzo product film" width={1280} height={720} /><div><span className="feature-eyebrow">A SHORT FILM BY LUSION</span><h2 id="film-dialog-title">The world's most sophisticated coaster.</h2><p>The original site introduces a short film here; this locally recreated version preserves the film still and its original presentation.</p></div></div></div>}
+      {showFilm && (
+        <div className="oz-film" role="dialog" aria-modal="true" aria-label="Oryzo film" onClick={(event) => { if (event.target === event.currentTarget) setShowFilm(false); }}>
+          <button type="button" className="oz-film-close" onClick={() => setShowFilm(false)}>Close</button>
+          <div className="oz-film-frame">
+            <iframe src={FILM_URL} title="Oryzo film" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
