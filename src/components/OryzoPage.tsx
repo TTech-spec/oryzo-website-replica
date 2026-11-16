@@ -9,29 +9,19 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useMemo } from "react";
 import heroImage from "@/assets/oryzo-hero.jpg";
 import { IntroStage } from "@/components/oryzo/IntroStage";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { Button } from "@/components/ui/button";
-import { campaignCards, coasterModels, flipMessage, reviewCards } from "@/lib/oryzo";
+import { campaignCards, coasterModels, reviewCards } from "@/lib/oryzo";
 
 const FILM_URL = "https://player.vimeo.com/video/1174820580?h=5aaa6219d2&autoplay=1";
 
-const cardImage = (filename: string) => `/__l5e/assets-v1/${filename}`;
-
 export function OryzoPage() {
   const [selectedModel, setSelectedModel] = useState(0);
-  const [temperature, setTemperature] = useState(1);
-  const [message, setMessage] = useState("");
-  const [isEncoded, setIsEncoded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showFilm, setShowFilm] = useState(false);
 
-  const shownMessage = useMemo(
-    () => (isEncoded ? flipMessage(message) : message),
-    [isEncoded, message],
-  );
   const model = coasterModels[selectedModel] ?? coasterModels[0]!;
 
   const handleCopyUrl = async () => {
@@ -62,157 +52,6 @@ export function OryzoPage() {
       </a>
 
       <IntroStage onPlayFilm={() => setShowFilm(true)} />
-
-      <section className="features-section">
-        <div className="temperature-demo">
-          <div className="temperature-copy">
-            <span className="feature-eyebrow">A TEMPERATURE-DEPENDENT THEORY OF COASTER</span>
-            <h3>
-              Choose your
-              <br />
-              intelligence.
-            </h3>
-            <p>Set the model temperature. We promise not to pretend there’s a model.</p>
-          </div>
-          <div className="temperature-control">
-            <div className="temperature-output">
-              <span>
-                {temperature < 2 ? "DETERMINISTIC" : temperature < 6 ? "BALANCED" : "CREATIVE"}
-              </span>
-              <span>
-                T ={" "}
-                {temperature === 1
-                  ? "0.1"
-                  : temperature === 2
-                    ? "1"
-                    : temperature === 10
-                      ? "10"
-                      : (temperature / 5).toFixed(1)}
-              </span>
-            </div>
-            <input
-              aria-label="Oryzo model temperature"
-              min="1"
-              max="10"
-              step="1"
-              type="range"
-              value={temperature}
-              onChange={(event) => setTemperature(Number(event.target.value))}
-            />
-            <div className="temperature-scale">
-              <span>DETERMINISTIC</span>
-              <span>CREATIVE</span>
-            </div>
-            <p className="temperature-output-note">
-              <span className="status-dot" />{" "}
-              {temperature > 7
-                ? "Thinking about circularity…"
-                : temperature > 3
-                  ? "Still a coaster."
-                  : "Constant lift via geometry."}
-            </p>
-          </div>
-          <div className="temperature-asterisk">
-            <VolumeX aria-hidden="true" />
-            <span>
-              NO TOKENS. NO CLOUD.
-              <br />
-              NO ACTUAL COMPUTE.
-            </span>
-          </div>
-        </div>
-        <div className="encryption-demo">
-          <div className="encryption-heading">
-            <p className="section-kicker">
-              <span className="status-dot" /> Secure communications simplified
-            </p>
-            <h3>
-              Smart flip
-              <br />
-              <span>encryption.</span>
-            </h3>
-            <p>Write a message. Flip. Instantly secure — until someone flips it back. Genius.</p>
-          </div>
-          <div className="encryption-tool">
-            <div className="encryption-tool-head">
-              <span>ORYZO ENCRYPTION SYSTEM™</span>
-              <span className="tool-live">
-                <span className="status-dot" /> ON DEVICE
-              </span>
-            </div>
-            <label className="encryption-label" htmlFor="oryzo-message">
-              YOUR MESSAGE
-            </label>
-            <textarea
-              id="oryzo-message"
-              maxLength={120}
-              placeholder="Type something worth protecting…"
-              value={shownMessage}
-              onChange={(event) => {
-                setMessage(isEncoded ? flipMessage(event.target.value) : event.target.value);
-              }}
-            />
-            <div className="encryption-tool-bottom">
-              <span>{message.length}/120 · ALGORITHM: REVERSE</span>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setIsEncoded((current) => !current)}
-              >
-                {isEncoded ? (
-                  <>
-                    <RotateCcw aria-hidden="true" /> Decode message
-                  </>
-                ) : (
-                  <>
-                    <MoveDown aria-hidden="true" /> Encode message
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="coaster-qa">
-        <div className="qa-warning">
-          <span>
-            FIELD NOTE <b>001</b>
-          </span>
-          <span>01 / 03</span>
-        </div>
-        <div className="qa-content">
-          <div className="qa-photo-wrap">
-            <img
-              src={cardImage("/d15eb3b9-afd1-473f-a482-0a430f3a925a/perfect.webp")}
-              alt="Close-up of the precision-cut natural cork rim"
-              loading="lazy"
-            />
-            <span>MICRO-TEXTURED CORK · MACRO STUDY</span>
-          </div>
-          <div className="qa-copy">
-            <span className="feature-eyebrow">PRECISION GRIP, ZERO DRAMA</span>
-            <h2>
-              Grip-locked
-              <br />
-              <span>antislip</span>
-              <br />
-              technology.
-            </h2>
-            <p>
-              Micro-textured cork so grippy your drink files a restraining order against gravity.
-              Spills? Consider them politely discouraged.
-            </p>
-            <div className="friction-stat">
-              <span>FRICTION COEFFICIENT (EST.)</span>
-              <strong>0.80</strong>
-            </div>
-            <div className="qa-encryption-note">
-              <span className="status-dot" /> EXCESSIVE CONFIDENCE. REASONABLE GRIP.
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section className="sustainability">
         <div className="sustainability-hero">

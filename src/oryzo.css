@@ -104,8 +104,8 @@
 
 .oz-stage-track {
   position: relative;
-  /* 900vh of intro + 1325vh of wearable gallery + 1450vh of features and flip encryption, all on one pinned stage. */
-  height: 3675vh;
+  /* 900vh of intro + 1325vh of wearable gallery + 1850vh of features, flip encryption and grip, all on one pinned stage. */
+  height: 4075vh;
   --hero: 1;
   --pre: 0;
   --pre-x: -1;
@@ -1400,6 +1400,191 @@
 
 .oz-enc-button.is-active .oz-enc-button-inner {
   transform: translateY(-2.5em);
+}
+
+/* ---------- Grip close-up ---------- */
+
+.oz-grip {
+  --box: 35vh;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Monochrome cork photograph: fills the height, twice as wide as it is tall. */
+.oz-grip-backdrop {
+  --zoom: 1;
+  --blur: 0vh;
+  --brightness: 1;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  visibility: hidden;
+}
+
+.oz-grip-backdrop img {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  width: auto;
+  min-width: 100%;
+  object-fit: cover;
+  transform: translateX(-50%) scale(var(--zoom));
+  filter: grayscale(1) blur(var(--blur)) brightness(var(--brightness));
+}
+
+.oz-stage-track:not([data-grip="on"]) .oz-grip-header,
+.oz-stage-track:not([data-grip="on"]) .oz-grip-box,
+.oz-stage-track:not([data-grip="on"]) .oz-grip-hint {
+  visibility: hidden;
+}
+
+.oz-grip-header {
+  position: absolute;
+  left: 0;
+  top: calc(var(--oz-pad-y) + 8vh);
+  width: 100%;
+  text-align: center;
+}
+
+.oz-grip-tagline {
+  margin: 0;
+  font-size: 1.18vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-transform: uppercase;
+  opacity: calc(min(1, var(--grip-in, 0) * 2.2) * (1 - min(1, var(--grip-out, 0) * 2.5)));
+  transform: translateY(calc((1 - min(1, var(--grip-in, 0) * 2.2)) * 1em));
+}
+
+.oz-grip-title {
+  margin: 0.45em 0;
+  font-size: 3.9vw;
+  font-weight: 500;
+  line-height: 0.9;
+  text-transform: uppercase;
+  opacity: calc(min(1, var(--grip-in, 0) * 1.6) * (1 - var(--grip-out, 0)));
+  filter: blur(calc((1 - min(1, var(--grip-in, 0) * 1.4)) * 0.3em));
+}
+
+.oz-grip-desc {
+  margin: 0;
+  font-size: 1.18vw;
+  font-weight: 400;
+  line-height: 1.333;
+  opacity: calc(clamp(0, var(--grip-in, 0) * 2.5 - 1, 1) * (1 - min(1, var(--grip-out, 0) * 1.6)));
+  transform: translateY(calc((1 - clamp(0, var(--grip-in, 0) * 2.5 - 1, 1)) * 1.2em));
+}
+
+.oz-grip-box {
+  position: absolute;
+  left: 50%;
+  top: calc(71.5% - var(--box) / 2 * 380 / 512);
+  width: var(--box);
+  margin-left: calc(var(--box) / -2);
+}
+
+.oz-grip-box-inner {
+  position: relative;
+  width: 100%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.oz-grip-box-inner:active {
+  cursor: grabbing;
+}
+
+.oz-grip-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2;
+}
+
+.oz-grip-content {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5em 1em;
+  color: #171210;
+  font-size: 0.78vw;
+  font-weight: 500;
+  text-transform: uppercase;
+  opacity: calc(1 - var(--grip-out, 0));
+}
+
+.oz-grip-content-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: calc(clamp(0, (var(--grip-in, 0) - 0.3) / 0.3, 1) * 100%);
+  height: 100%;
+  background: var(--oz-cream);
+}
+
+.oz-grip-label,
+.oz-grip-coeff {
+  opacity: clamp(0, (var(--grip-in, 0) - 0.6) / 0.4, 1);
+}
+
+.oz-grip-hint {
+  --width: calc(var(--box) * 1.2);
+  position: absolute;
+  left: 50%;
+  top: calc(71.5% - var(--box) / 2 * 380 / 512 + var(--box) / 2);
+  width: var(--width);
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 0.72vw;
+  text-transform: uppercase;
+  opacity: calc(
+    clamp(0, var(--grip-in, 0) * 2 - 1, 1) * (1 - var(--grip-out, 0)) * var(--grip-hint, 1)
+  );
+}
+
+.oz-grip-hint svg {
+  display: block;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 50%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, black 50%, transparent 100%);
+}
+
+.oz-grip-hint path {
+  opacity: 0.6;
+  animation: oz-grip-dash 1s linear infinite;
+}
+
+.oz-grip-hint-dot {
+  animation: oz-grip-sway 1.6s ease-in-out infinite;
+}
+
+.oz-grip-hint span {
+  display: block;
+  margin-top: 0.6em;
+  opacity: 0.5;
+}
+
+@keyframes oz-grip-dash {
+  to {
+    stroke-dashoffset: -2;
+  }
+}
+
+@keyframes oz-grip-sway {
+  0%,
+  100% {
+    transform: translateX(-10px);
+  }
+  50% {
+    transform: translateX(10px);
+  }
 }
 
 /* ---------- Film overlay ---------- */

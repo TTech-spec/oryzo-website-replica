@@ -15,7 +15,9 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Desk effects**: a heat-camera pass for Thermodynamic stability (diagonal wipe, glowing cup, temperature scale), swaying window light, a mirror image of the props in the desk varnish, and steam from the cup.
 - **Bloom**: the stage renders through an off-screen buffer whose bright parts are blurred at five scales and added back, with a different look per scene (haze on the desk, tight glow on the headline, the hot cup on the heat camera).
 - **Roundness study**: for More Circular, a blueprint canvas draws the coaster as bezier arcs with control handles while design sketches drift around it; the circle then grows and splits into the O's of the ORYZO wordmark.
-- **Remaining sections** (flip encryption, grip, sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Flip encryption**: type a message and it is burnt into the coaster's underside; the coaster tumbles over on a baked flip track to hide or reveal it, with an Encode/Decode button.
+- **Grip close-up**: the camera drops to the cork's edge, a monochrome close-up photograph takes over, and a draggable microscope window shows the texture with a live friction reading.
+- **Remaining sections** (sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
 ## Tech stack
 
@@ -34,6 +36,9 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/stage.ts` | Three.js scene: desk layer, coaster, hand, lighting, scroll timeline |
 | `src/lib/oryzo3d/shaders.ts` | GLSL for the coaster, hand and desk props |
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
+| `src/components/oryzo/EncryptionLayer.tsx` | Flip encryption copy, message field and flip button |
+| `src/components/oryzo/GripLayer.tsx` | Grip copy, cork backdrop and microscope window markup |
+| `src/lib/oryzo3d/gripView.ts` | Grip backdrop, drag and microscope drawing |
 | `src/components/oryzo/FeaturesLayer.tsx` | Features copy shown over the desk scene |
 | `src/lib/oryzo3d/table.ts` | Desk set: surfaces, coffee cup, baked features animation |
 | `src/lib/oryzo3d/bloom.ts` | Bloom post-process (high-pass, blur pyramid, composite) |
@@ -72,6 +77,7 @@ Scroll position is measured in viewport heights. The first ten screens are pinne
 4. `5.5 – 8`: the "Powered by AI" highlight glow.
 5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8. From 18 the desk set renders inside the magazine frame.
 6. `21.25 – 30.75`: the frame opens to full screen, the features camera move plays, then the roundness study.
+7. `30.75 – 39.75`: flip encryption, then the grip close-up.
 
 ## Deploying to Vercel
 

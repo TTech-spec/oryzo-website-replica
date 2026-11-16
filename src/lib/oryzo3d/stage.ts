@@ -183,7 +183,8 @@ export class OryzoStage {
   private flipProgress = 0;
   private flipNeedsDemo = true;
   private flipAngle = Math.random() * Math.PI * 2;
-  private tableClock = 0;
+  /** The desk set's animation clock (0 when it is not on screen). */
+  tableClock = 0;
   private envGrip: THREE.Texture | null = null;
   private envHand: THREE.Texture | null = null;
   /** Called when the coaster starts turning over; true means the message side is facing up. */
@@ -735,11 +736,14 @@ export class OryzoStage {
     t = fit(a, 3.55, 5, t, 6);
     t = fit(a, 9.5, 10.5, t, 7);
     t = fit(a, 10.5, 11.5, t, 8);
+    t = fit(a, 13.5, 15, t, 9);
+    t = fit(a, 16.5, 17.5, t, 10);
     this.tableClock = t;
     const table = this.table;
     if (t <= 0 || !table.ready) return false;
     // At 6 the set cuts to the dark roundness study.
-    if (t >= 6 && t < 6.75) {
+    // From 9 the cork close-up photograph has fully covered the set.
+    if ((t >= 6 && t < 6.75) || t >= 9) {
       this.renderer.setScissorTest(false);
       this.renderer.clear();
       this.updateFlip(t, dt);

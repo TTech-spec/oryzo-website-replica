@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { EncryptionLayer } from "@/components/oryzo/EncryptionLayer";
 import { FeaturesLayer } from "@/components/oryzo/FeaturesLayer";
+import { GripLayer } from "@/components/oryzo/GripLayer";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
 import type { CurveStudy } from "@/lib/oryzo3d/curveStudy";
+import type { GripView } from "@/lib/oryzo3d/gripView";
 import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
 
 const cubicInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -215,8 +217,21 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       applyWearable(r - 8);
       applyFeatures(r - 21.25);
       applyEncryption(r - 21.25 - 10.5);
+      const now = performance.now();
+      gripView?.update(
+        Math.min(0.1, (now - lastGripTime) / 1000),
+        r - 21.25 - 14.5,
+        stage?.tableClock ?? 0,
+      );
+      lastGripTime = now;
     };
 
+    let gripView: GripView | undefined;
+    let lastGripTime = performance.now();
+    void import("@/lib/oryzo3d/gripView").then(({ GripView }) => {
+      if (cancelled) return;
+      gripView = new GripView(root, "/oryzo/textures/table/microscopic.webp");
+    });
     void import("@/lib/oryzo3d/curveStudy").then(({ CurveStudy }) => {
       if (cancelled || !curveCanvas) return;
       curveStudy = new CurveStudy(curveCanvas, "/oryzo/textures/");
@@ -235,6 +250,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       stage?.dispose();
       stageRef.current = null;
       curveStudy?.dispose();
+      gripView?.dispose();
       window.removeEventListener("resize", onResize);
     };
   }, []);
@@ -346,6 +362,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
 
         <WearableLayer />
         <FeaturesLayer />
+        <GripLayer />
         <EncryptionLayer
           messageUp={messageUp}
           onMessage={(text) => stageRef.current?.setMessage(text)}
