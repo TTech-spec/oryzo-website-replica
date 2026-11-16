@@ -6,8 +6,20 @@ export function GripLayer() {
   return (
     <div className="oz-grip">
       <div className="oz-grip-backdrop" aria-hidden="true">
-        <img src="/oryzo/textures/table/cork_closeup.webp" alt="" loading="lazy" />
+        <img
+          className="oz-grip-soft"
+          src="/oryzo/textures/table/cork_closeup.webp"
+          alt=""
+          loading="lazy"
+        />
+        <img
+          className="oz-grip-sharp"
+          src="/oryzo/textures/table/cork_closeup.webp"
+          alt=""
+          loading="lazy"
+        />
       </div>
+      <canvas className="oz-grip-bears" aria-hidden="true" />
       <div className="oz-grip-header">
         <p className="oz-grip-tagline">Precision Grip, Zero Drama</p>
         <h2 className="oz-grip-title">

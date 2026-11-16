@@ -15,6 +15,7 @@ import {
   jacketFragment,
   propVertex,
 } from "./shaders";
+import { MessageText } from "./messageText";
 import { TableScene } from "./table";
 import { Wrapper } from "./wrapper";
 
@@ -177,8 +178,7 @@ export class OryzoStage {
   };
   // Flip encryption: the message lives on the coaster's underside; flipping hides or reveals it.
   private flipTrack?: FrameAnimation;
-  private messageCanvas = document.createElement("canvas");
-  private messageTexture = new THREE.CanvasTexture(this.messageCanvas);
+  private messageText?: MessageText;
   private isFlipped = true;
   private flipProgress = 0;
   private flipNeedsDemo = true;
@@ -511,7 +511,9 @@ export class OryzoStage {
     this.envGrip = env("table/env_grip.webp");
     this.envHand = u.uEnv2.value;
     this.flipTrack = new FrameAnimation(await loadBuf(MODEL_PATH + "COASTER_FLIP_ANIM.buf"));
-    u.uTextMap.value = this.messageTexture;
+    this.messageText = new MessageText(tex("../fonts/msdf/Inter.webp"));
+    await this.messageText.load("/oryzo/fonts/msdf/Inter.json");
+    u.uTextMap.value = this.messageText.target.texture;
     this.setMessage(this.message);
     const riseTexture = tex("wearable/rise.webp");
     riseTexture.minFilter = THREE.LinearFilter;
@@ -913,37 +915,7 @@ export class OryzoStage {
   /** Stamp a new message into the coaster's underside. */
   setMessage(text: string) {
     this.message = text.toUpperCase().slice(0, 10);
-    const canvas = this.messageCanvas;
-    const width = (canvas.width = 1024);
-    const height = (canvas.height = 128);
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = "#fff";
-    ctx.font = '700 118px Inter, "Hanken Grotesk", "Helvetica Neue", Arial, sans-serif';
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    if ("letterSpacing" in ctx)
-      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "-3px";
-    ctx.fillText(this.message, width / 2, height / 2 + 6, width - 24);
-    // Repack as: r, g = emboss slope towards +x / +y, b = ink coverage.
-    const image = ctx.getImageData(0, 0, width, height);
-    const src = image.data;
-    const ink = new Uint8Array(width * height);
-    for (let i = 0; i < ink.length; i++) ink[i] = src[i * 4] ?? 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = y * width + x;
-        const a = ink[i] ?? 0;
-        src[i * 4] = Math.max(0, (ink[i + 1] ?? a) - a);
-        src[i * 4 + 1] = Math.max(0, (ink[i + width] ?? a) - a);
-        src[i * 4 + 2] = a;
-        src[i * 4 + 3] = 255;
-      }
-    }
-    ctx.putImageData(image, 0, 0);
-    this.messageTexture.needsUpdate = true;
+    this.messageText?.render(this.renderer, this.message);
   }
 
   /** Turn the coaster over (only while the flip demo is on screen). */
