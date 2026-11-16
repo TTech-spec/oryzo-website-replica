@@ -307,6 +307,10 @@ export class TableScene {
     uTime: { value: 0 },
     uStrength: { value: 0.4630597 },
   };
+  private goboTextures: { desk: THREE.Texture | null; leaves: THREE.Texture | null } = {
+    desk: null,
+    leaves: null,
+  };
   private thermalScene = new THREE.Scene();
   private quadCamera = new THREE.Camera();
   private smoke?: THREE.Mesh;
@@ -400,7 +404,9 @@ export class TableScene {
       t.generateMipmaps = false;
       return t;
     };
-    this.goboUniforms.uTexture.value = nearest("gobo/gobo_b_0.4630597.avif");
+    this.goboTextures.desk = nearest("gobo/gobo_b_0.4630597.avif");
+    this.goboTextures.leaves = nearest("gobo/gobo_c_0.38847005.avif");
+    this.useGobo("desk");
     const thermalTexture = tex("thermal_gradient.webp");
     thermalTexture.minFilter = THREE.LinearFilter;
     thermalTexture.generateMipmaps = false;
@@ -521,6 +527,17 @@ export class TableScene {
     this.coffeeAnimation?.apply(this.coffee, frame);
     this.coffee.visible = frame < 195;
     return focal ? fovFromFocal(focal) : undefined;
+  }
+
+  /** The moving shadow texture, for other scenes that want the same light. */
+  get goboTexture() {
+    return this.goboTarget.texture;
+  }
+
+  /** Switch between the desk's window light and the broader leaf shadow used on plain ground. */
+  useGobo(kind: "desk" | "leaves") {
+    this.goboUniforms.uTexture.value = this.goboTextures[kind];
+    this.goboUniforms.uStrength.value = kind === "desk" ? 0.4630597 : 0.38847005;
   }
 
   /** Advance the swaying window light and the steam. */

@@ -12,6 +12,7 @@ import {
 import heroImage from "@/assets/oryzo-hero.jpg";
 import { IntroStage } from "@/components/oryzo/IntroStage";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
+import { SustainabilityStats } from "@/components/oryzo/SustainabilityLayer";
 import { Button } from "@/components/ui/button";
 import { campaignCards, coasterModels, reviewCards } from "@/lib/oryzo";
 
@@ -53,76 +54,7 @@ export function OryzoPage() {
 
       <IntroStage onPlayFilm={() => setShowFilm(true)} />
 
-      <section className="sustainability">
-        <div className="sustainability-hero">
-          <div>
-            <p className="section-kicker">
-              <span className="status-dot" /> Good from the beginning
-            </p>
-            <span className="sustainability-caption">
-              100% PLANT-BASED
-              <br />
-              VEGAN-FRIENDLY
-            </span>
-            <h2>
-              Nature
-              <br />
-              knows best<span>.</span>
-            </h2>
-          </div>
-          <div className="sustainability-side">
-            <span className="cork-tree" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <p>
-              Pure cork sourced sustainably. Completely vegan — no cows were harmed, but it might be
-              full of “bull”sh*t.
-            </p>
-            <span>
-              RENEWABLE BY NATURE
-              <br />
-              SIMPLE BY DESIGN
-            </span>
-          </div>
-        </div>
-        <div className="sustainability-facts">
-          <article>
-            <span className="fact-index">01 / GROWTH</span>
-            <strong>
-              25<span> years</span>
-            </strong>
-            <h3>Average age of first harvest</h3>
-            <p>
-              Cork oaks are typically first harvested at around 25 years, once the bark is thick
-              enough to remove safely.
-            </p>
-          </article>
-          <article>
-            <span className="fact-index">02 / REGENERATION</span>
-            <strong>
-              09<span> years</span>
-            </strong>
-            <h3>Harvesting interval</h3>
-            <p>
-              After each harvest, the bark takes about nine years to regrow, making cork a renewable
-              material.
-            </p>
-          </article>
-          <article>
-            <span className="fact-index">03 / EFFICIENCY</span>
-            <strong>
-              0<span> tokens</span>
-            </strong>
-            <h3>Power draw while in use</h3>
-            <p>
-              No compute. No tokens. So you can say “please” and “thank you” as much as you want,
-              guilt free.
-            </p>
-          </article>
-        </div>
-      </section>
+      <SustainabilityStats />
 
       <section className="testimonials">
         <div className="testimonials-heading">

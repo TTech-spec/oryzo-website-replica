@@ -16,6 +16,7 @@ import {
   propVertex,
 } from "./shaders";
 import { MessageText } from "./messageText";
+import { SustainabilityScene } from "./sustainability";
 import { TableScene } from "./table";
 import { Wrapper } from "./wrapper";
 
@@ -89,6 +90,12 @@ const HIGHLIGHT_BLOOM: BloomSettings = {
   amount: 3,
   lumaStrength: 0,
   selectiveStrength: 1,
+  saturation: 1,
+};
+const SUSTAINABILITY_BLOOM: BloomSettings = {
+  amount: 2.5,
+  lumaStrength: 0,
+  selectiveStrength: 1.5,
   saturation: 1,
 };
 const THERMAL_BLOOM: BloomSettings = {
@@ -259,6 +266,11 @@ export class OryzoStage {
   private disposed = false;
   private idle = false;
   private table = new TableScene();
+  private sustainability = new SustainabilityScene();
+  private easedPointer = new THREE.Vector2();
+  /** Clock of the sustainability scene (0 when off screen) and the colour its copy should take. */
+  sustainabilityClock = 0;
+  sustainabilityInk = "#ffedd7";
   private bloom = new Bloom();
   private bloomSettings: BloomSettings = {
     amount: 0,
@@ -289,6 +301,7 @@ export class OryzoStage {
   private q0 = new THREE.Quaternion();
   private q1 = new THREE.Quaternion();
   private m0 = new THREE.Matrix4();
+  private v2 = new THREE.Vector2();
 
   onFrame?: (frame: StageFrame) => void;
   onReady?: () => void;
@@ -542,6 +555,7 @@ export class OryzoStage {
       dataTex,
       "/oryzo/splats/table_reflection.sog",
     );
+    await this.sustainability.load(MODEL_PATH, (path) => tex(path), this.table.goboTexture);
   }
 
   private resize = () => {
@@ -722,6 +736,45 @@ export class OryzoStage {
   }
 
   /**
+   * Sustainability: bark, title and ground.
+   * @param rs viewport heights into the sustainability section
+   * @returns true when it drew the frame
+   */
+  private renderSustainability(rs: number, dt: number) {
+    let t = fit(rs, -1, 0, 0, 1);
+    t = fit(rs, 0.25, 2.5, t, 2);
+    t = fit(rs, 3, 3.5, t, 3);
+    const scene = this.sustainability;
+    if (rs < -1 || !scene.ready) {
+      this.sustainabilityClock = 0;
+      return false;
+    }
+    this.sustainabilityClock = t;
+    this.tableClock = 10;
+    const ease = 1 - Math.exp(-dt * 4);
+    if (this.pointer) this.easedPointer.lerp(this.pointer, ease);
+    this.table.useGobo("leaves");
+    this.table.animate(this.renderer, dt);
+    this.renderer.getDrawingBufferSize(this.v2);
+    scene.update(t, this.width, this.height, this.v2, this.easedPointer);
+    this.sustainabilityInk = `#${scene.inkColor.getHexString()}`;
+
+    this.canvas.style.transition = "";
+    this.canvas.style.opacity = "";
+    this.renderer.setScissorTest(false);
+    // The title glows on the dark ground; the glow is gone before the ground turns cream.
+    blendBloom(
+      this.resetBloom(),
+      SUSTAINABILITY_BLOOM,
+      fit(t, 0, 1, 0, 1) * fit(t, 2.1, 2.3, 1, 0),
+    );
+    const glow = this.beginFrame();
+    scene.render(this.renderer);
+    this.endFrame(glow);
+    return true;
+  }
+
+  /**
    * The desk set: seen first through the magazine frame, then opening up to full screen and
    * playing the baked features camera move.
    * @param rw viewport heights into the wearable section
@@ -851,6 +904,7 @@ export class OryzoStage {
     table.group.visible = true;
     const coffeeVisible = table.coffee.visible;
     table.update(camera, this.coasterInner);
+    table.useGobo("desk");
     table.animate(this.renderer, dt);
     table.renderReflection(this.renderer, camera);
     this.desk.visible = false;
@@ -1018,6 +1072,10 @@ export class OryzoStage {
     if (!this.cameraAnimation || !this.coasterAnimation) return;
     // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
     const rw = r - 8;
+    if (this.renderSustainability(r - 21.25 - 18.5, dt)) {
+      this.idle = false;
+      return;
+    }
     if (this.renderTable(rw, r - 21.25, dt)) {
       this.idle = false;
       return;

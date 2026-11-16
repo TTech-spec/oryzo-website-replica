@@ -17,12 +17,14 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Roundness study**: for More Circular, a blueprint canvas draws the coaster as bezier arcs with control handles while design sketches drift around it; the circle then grows and splits into the O's of the ORYZO wordmark.
 - **Flip encryption**: type a message and it is burnt into the coaster's underside; the coaster tumbles over on a baked flip track to hide or reveal it, with an Encode/Decode button.
 - **Grip close-up**: the camera drops to the cork's edge, a monochrome close-up photograph takes over, and a draggable microscope window shows the texture with a live friction reading.
-- **Remaining sections** (sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Sustainability**: a top-down slab of cork-oak bark splits along its seam and rolls back like a peel, revealing the title (drawn from the original's vector outline) glowing on dark ground. The ground then turns cream under swaying leaf shadow, and three fact cards follow with their Rive animations.
+- **Remaining sections** (testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
 ## Tech stack
 
 - [TanStack Start](https://tanstack.com/start) + React 19 + TypeScript
 - [Three.js](https://threejs.org/) for the WebGL stage
+- [Rive](https://rive.app/) for the sustainability card animations
 - Tailwind CSS v4 plus plain CSS for the campaign layout
 - Vite
 
@@ -39,6 +41,9 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/components/oryzo/EncryptionLayer.tsx` | Flip encryption copy, message field and flip button |
 | `src/components/oryzo/GripLayer.tsx` | Grip copy, cork backdrop and microscope window markup |
 | `src/lib/oryzo3d/gripView.ts` | Grip backdrop, drag and microscope drawing |
+| `src/components/oryzo/SustainabilityLayer.tsx` | Sustainability copy and the fact cards |
+| `src/lib/oryzo3d/sustainability.ts` | Bark peel, title outline and shadowed ground |
+| `src/lib/oryzo3d/messageText.ts` | Distance-field text for the coaster's stamped message |
 | `src/components/oryzo/FeaturesLayer.tsx` | Features copy shown over the desk scene |
 | `src/lib/oryzo3d/table.ts` | Desk set: surfaces, coffee cup, baked features animation |
 | `src/lib/oryzo3d/bloom.ts` | Bloom post-process (high-pass, blur pyramid, composite) |
@@ -78,6 +83,7 @@ Scroll position is measured in viewport heights. The first ten screens are pinne
 5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8. From 18 the desk set renders inside the magazine frame.
 6. `21.25 – 30.75`: the frame opens to full screen, the features camera move plays, then the roundness study.
 7. `30.75 – 39.75`: flip encryption, then the grip close-up.
+8. `39.75 – 44.75`: sustainability; the pinned stage ends here and the page scrolls normally.
 
 ## Deploying to Vercel
 

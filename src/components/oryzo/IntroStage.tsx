@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { EncryptionLayer } from "@/components/oryzo/EncryptionLayer";
 import { FeaturesLayer } from "@/components/oryzo/FeaturesLayer";
 import { GripLayer } from "@/components/oryzo/GripLayer";
+import { SustainabilityLayer } from "@/components/oryzo/SustainabilityLayer";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
 import type { CurveStudy } from "@/lib/oryzo3d/curveStudy";
@@ -156,7 +157,13 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
         `${fit(curve, 3.75, 4, 0, (5.75 * 1080) / window.innerHeight - 4, cubicOut).toFixed(2)}px`,
       );
       root.style.setProperty("--feat-logo-dark", fit(curve, 3.5, 4, 0, 1).toFixed(4));
-      if (!active) return;
+      if (!active) {
+        // Items carry their own visibility, which would otherwise override the hidden layer.
+        for (const el of [...featureItems, ...featureExtras]) {
+          if (el.style.visibility !== "hidden") el.style.visibility = "hidden";
+        }
+        return;
+      }
       let first = 0;
       let lastOut = 0;
       featureItems.forEach((item, i) => {
@@ -193,6 +200,31 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       root.style.setProperty("--enc-out", gone.toFixed(4));
     };
 
+    // Sustainability copy, and the dark header while the page is cream.
+    const lightSections = Array.from(document.querySelectorAll<HTMLElement>("[data-light-header]"));
+    let lightHeader = false;
+    const applySustainability = (rs: number) => {
+      const active = rs >= 1.8;
+      root.dataset["sus"] = active ? "on" : "off";
+      if (active) {
+        root.style.setProperty("--sus-a", fit(rs, 1.8, 2.5, 0, 1, cubicOut).toFixed(4));
+        root.style.setProperty("--sus-b", fit(rs, 2, 3, 0, 1, cubicOut).toFixed(4));
+        root.style.setProperty("--sus-ink", stage?.sustainabilityInk ?? "#ffedd7");
+      }
+      // Cream begins part-way through this scene and continues through the sections flagged below it.
+      const headerLine = 40;
+      const overStage = rs > 3.3 && root.getBoundingClientRect().bottom > headerLine;
+      const overSection = lightSections.some((section) => {
+        const rect = section.getBoundingClientRect();
+        return rect.top <= headerLine && rect.bottom > headerLine;
+      });
+      const light = overStage || overSection;
+      if (light !== lightHeader) {
+        lightHeader = light;
+        document.documentElement.dataset["ozHeader"] = light ? "light" : "dark";
+      }
+    };
+
     const applyFrame = ({ r, heroActive }: StageFrame) => {
       const set = (name: string, value: number) => root.style.setProperty(name, value.toFixed(4));
       set("--hero", heroActive);
@@ -224,6 +256,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
         stage?.tableClock ?? 0,
       );
       lastGripTime = now;
+      applySustainability(r - 21.25 - 18.5);
     };
 
     let gripView: GripView | undefined;
@@ -362,6 +395,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
 
         <WearableLayer />
         <FeaturesLayer />
+        <SustainabilityLayer />
         <GripLayer />
         <EncryptionLayer
           messageUp={messageUp}

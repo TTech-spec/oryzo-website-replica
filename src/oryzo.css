@@ -104,8 +104,8 @@
 
 .oz-stage-track {
   position: relative;
-  /* 900vh of intro + 1325vh of wearable gallery + 1850vh of features, flip encryption and grip, all on one pinned stage. */
-  height: 4075vh;
+  /* 900vh of intro + 1325vh of wearable gallery + 2350vh of features, flip encryption, grip and sustainability, all on one pinned stage. */
+  height: 4575vh;
   --hero: 1;
   --pre: 0;
   --pre-x: -1;
@@ -1610,6 +1610,184 @@
   50% {
     transform: translateX(10px);
   }
+}
+
+/* ---------- Sustainability ---------- */
+
+.oz-sus {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--sus-ink, var(--oz-cream));
+}
+
+.oz-stage-track:not([data-sus="on"]) .oz-sus {
+  visibility: hidden;
+}
+
+.oz-sus-tagline {
+  position: absolute;
+  left: 0;
+  top: calc(5vh + var(--oz-pad-y));
+  width: 100%;
+  margin: 0;
+  font-size: 0.84vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-align: center;
+  text-transform: uppercase;
+  opacity: var(--sus-a, 0);
+  transform: translateY(calc((var(--sus-a, 0) - 1) * 1em));
+}
+
+/* Same box the 3D title is drawn into: full content width, 291.94 : 1799.07. */
+.oz-sus-title {
+  position: absolute;
+  left: var(--oz-pad-x);
+  right: var(--oz-pad-x);
+  bottom: 50%;
+  height: calc((100vw - var(--oz-pad-x) * 2) * 291.94 / 1799.07);
+  margin-bottom: calc((100vw - var(--oz-pad-x) * 2) * -0.07);
+}
+
+.oz-sus-pre {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin: 0 0 -0.75em;
+  font-size: 1.67vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-transform: uppercase;
+  opacity: var(--sus-b, 0);
+  transform: translateX(calc((var(--sus-b, 0) - 1) * 20%));
+}
+
+/* Present for assistive tech and layout only; the visible word is in the 3D layer. */
+.oz-sus-main {
+  margin: 0;
+  font-size: 15vw;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.018em;
+  text-indent: -0.03em;
+  visibility: hidden;
+}
+
+.oz-sus-desc {
+  position: absolute;
+  left: 0;
+  top: 68vh;
+  width: 100%;
+  margin: 0;
+  font-size: 1.25vw;
+  font-weight: 400;
+  line-height: 1.333;
+  text-align: center;
+  opacity: var(--sus-a, 0);
+  transform: translateY(calc(-50% + (1 - var(--sus-a, 0)) * 0.5em));
+}
+
+/* Facts on cream, after the pinned scene. */
+.oryzo-page > section.oz-stats.oz-stats {
+  padding: calc(var(--oz-pad-y) * 2) var(--oz-pad-x);
+  border-top: 0;
+  background: var(--oz-cream);
+  color: #100904;
+}
+
+.oz-stats-grid {
+  --gap: calc((100vw - var(--oz-pad-x) * 2) * 0.0167);
+  display: grid;
+  grid-template-columns: 4fr 6fr 6fr;
+  gap: var(--gap);
+}
+
+.oz-stat {
+  --pad: calc(var(--oz-pad-x) * 0.5);
+  position: relative;
+  height: calc((100vw - var(--oz-pad-x) * 2) * 0.365);
+  padding: var(--pad);
+  overflow: hidden;
+  background: #f6e0c6;
+  color: #445231;
+}
+
+.oz-stat.is-feature {
+  background: #445231;
+  color: var(--oz-cream);
+}
+
+.oz-stat h3,
+.oz-stat h4 {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 1em;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.oz-stat h3 {
+  font-size: 2.35vw;
+  line-height: 1;
+}
+
+.oz-stat h4 {
+  font-size: 1.67vw;
+  line-height: 1.09;
+}
+
+.oz-stat p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding-right: 3vw;
+  font-size: 1.25vw;
+  font-weight: 400;
+  line-height: 1.333;
+}
+
+.oz-stat:not(.is-feature) p {
+  position: absolute;
+  left: var(--pad);
+  bottom: var(--pad);
+  padding-right: 6vw;
+}
+
+.oz-stat-num {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translateX(-50%);
+  font-size: 30vw;
+  font-weight: 600;
+  line-height: 1;
+  color: #5d6c49;
+}
+
+.oz-stat-rive {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 65%;
+  height: 65%;
+  transform: translate(-50%, -50%);
+}
+
+.oz-stat-rive.is-full {
+  width: 100%;
+  height: 100%;
+}
+
+/* Header turns dark while the page beneath it is cream. */
+[data-oz-header="light"] .oz-header-logo,
+[data-oz-header="light"] .oz-nav a {
+  color: #100904;
+}
+
+.oz-header-logo,
+.oz-nav a {
+  transition: color 0.3s ease;
 }
 
 /* ---------- Film overlay ---------- */
