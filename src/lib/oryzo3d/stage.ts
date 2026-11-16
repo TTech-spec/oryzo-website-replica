@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-import { floatAttribute, loadBuf, type BufData } from "./buf";
+import { FrameAnimation, toGeometry } from "./anim";
+import { floatAttribute, loadBuf } from "./buf";
 import { DeskProps, PLANE_HEIGHT, PLANE_WIDTH } from "./deskProps";
 import { HandRig } from "./handRig";
 import {
@@ -12,6 +13,7 @@ import {
   jacketFragment,
   propVertex,
 } from "./shaders";
+import { TableScene } from "./table";
 import { Wrapper } from "./wrapper";
 
 const MODEL_PATH = "/oryzo/models/";
@@ -25,6 +27,38 @@ const FOV = (2 * Math.atan((VIEW_HEIGHT * 41.4) / VIEW_WIDTH / 2 / 50) * 180) / 
 const HAND_FRAME_START = 71;
 
 const HERO_LIGHT = new THREE.Vector3(0.346682, 1.00875, -0.368255);
+const sineInOut = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
+/** Number of gallery steps before the magazine cover. */
+const GALLERY_LAST = 7;
+/** How far right of centre the desk sits once the features copy takes the left of the screen. */
+const FEATURES_VIEW_OFFSET = 0.165;
+
+const riseVertex = /* glsl */ `
+  uniform vec4 uRect;
+  uniform vec2 uViewport;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    // uRect is in CSS pixels from the top-left; place the quad there directly in clip space.
+    vec2 px = uRect.xy + vec2(uv.x, 1.0 - uv.y) * uRect.zw;
+    gl_Position = vec4(px.x / uViewport.x * 2.0 - 1.0, 1.0 - px.y / uViewport.y * 2.0, 0.0, 1.0);
+  }
+`;
+const riseFragment = /* glsl */ `
+  uniform sampler2D uTexture;
+  uniform float uOpacity;
+  varying vec2 vUv;
+  float median(float r, float g, float b) { return max(min(r, g), min(max(r, g), b)); }
+  void main() {
+    vec3 msdf = texture2D(uTexture, vUv).rgb;
+    float sd = median(msdf.r, msdf.g, msdf.b);
+    // Distance field spans 4 texels of a 256x92 sheet; convert to screen pixels for a crisp edge.
+    float pxDistance = (sd - 0.4) * 4.0 / length(vec2(dFdx(vUv.x), dFdy(vUv.y)) * vec2(256.0, 92.0));
+    float alpha = clamp(pxDistance * 2.0, 0.0, 1.0);
+    gl_FragColor = vec4(vec3(1.0, 0.929, 0.843), alpha * uOpacity);
+  }
+`;
+
 const WEARABLE_LIGHT = new THREE.Vector3(-10, -2, 6);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -54,36 +88,6 @@ export const fit = (
 };
 export const cubicOut = (t: number) => 1 - (1 - t) ** 3;
 export const cubicIn = (t: number) => t ** 3;
-
-/** Baked per-frame transform track (position / orientation), sampled with interpolation. */
-class FrameAnimation {
-  private positions: Float32Array;
-  private orients: Float32Array;
-  frameCount: number;
-  private v = new THREE.Vector3();
-  private q = new THREE.Quaternion();
-
-  constructor(data: BufData) {
-    this.positions = floatAttribute(data, "position");
-    this.orients = floatAttribute(data, "orient");
-    this.frameCount = this.positions.length / 3;
-  }
-
-  apply(target: THREE.Object3D, frame: number) {
-    if (!this.frameCount) return;
-    const last = this.frameCount - 1;
-    const f = Math.min(last, Math.max(0, frame));
-    const i = Math.floor(f);
-    const j = Math.min(i + 1, last);
-    const t = f - i;
-    target.position
-      .fromArray(this.positions, i * 3)
-      .lerp(this.v.fromArray(this.positions, j * 3), t);
-    target.quaternion
-      .fromArray(this.orients, i * 4)
-      .slerp(this.q.fromArray(this.orients, j * 4), t);
-  }
-}
 
 export interface StageFrame {
   /** Smoothed scroll position, in viewport heights. */
@@ -174,6 +178,16 @@ export class OryzoStage {
   private lastTime = 0;
   private disposed = false;
   private idle = false;
+  private table = new TableScene();
+  private envHero: THREE.Texture | null = null;
+  private envTable: THREE.Texture | null = null;
+  private rise?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private riseUniforms = {
+    uTexture: { value: null as THREE.Texture | null },
+    uRect: { value: new THREE.Vector4() },
+    uViewport: { value: new THREE.Vector2(1, 1) },
+    uOpacity: { value: 1 },
+  };
   /** Pointer in normalised stage coordinates (-1..1, y up); null while outside the stage. */
   private pointer: THREE.Vector2 | null = null;
   private deskPointer = new THREE.Vector2();
@@ -312,7 +326,7 @@ export class OryzoStage {
     const u = this.coasterUniforms;
     u.uDiffuse.value = diffuse;
     u.uHeight.value = height;
-    u.uEnv1.value = env("hero/env_hero.webp");
+    u.uEnv1.value = this.envHero = env("hero/env_hero.webp");
     u.uEnv2.value = env("hero/env_hand.webp");
     u.uBrdf.value = tex("brdf.png");
     this.coaster.add(this.coasterInner);
@@ -373,6 +387,31 @@ export class OryzoStage {
     this.wrapperPivot.add(wrapper.group);
     this.scene.add(this.wrapperPivot);
     this.wrapper = wrapper;
+
+    // Desk set for the magazine cover and features section.
+    this.envTable = env("table/env_table.webp");
+    const riseTexture = tex("wearable/rise.webp");
+    riseTexture.minFilter = THREE.LinearFilter;
+    riseTexture.generateMipmaps = false;
+    this.riseUniforms.uTexture.value = riseTexture;
+    this.rise = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.ShaderMaterial({
+        uniforms: this.riseUniforms,
+        vertexShader: riseVertex,
+        fragmentShader: riseFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    this.rise.frustumCulled = false;
+    this.rise.renderOrder = -1;
+    this.rise.visible = false;
+    this.scene.add(this.rise, this.table.group);
+    await this.table.load(this.renderer, MODEL_PATH, "/oryzo/splats/props.sog", (path) =>
+      tex(path),
+    );
   }
 
   private resize = () => {
@@ -526,6 +565,129 @@ export class OryzoStage {
     };
   }
 
+  /**
+   * The desk set: seen first through the magazine frame, then opening up to full screen and
+   * playing the baked features camera move.
+   * @param rw viewport heights into the wearable section
+   * @param a viewport heights into the features section
+   * @returns true when it drew the frame
+   */
+  private renderTable(rw: number, a: number) {
+    // The set's animation clock: 0-3 inside the magazine frame, 3-6 across the features section.
+    let t = fit(rw, 10, 10.75, 0, 1);
+    t = fit(rw, 10.75, 11.75, t, 2);
+    t = fit(rw, 11.75, 13.25, t, 3);
+    t = fit(a, 0, 1.45, t, 4);
+    t = fit(a, 1.55, 3.45, t, 5);
+    t = fit(a, 3.55, 5, t, 6);
+    const table = this.table;
+    if (t <= 0 || !table.ready) return false;
+    // At 6 the set cuts to the dark roundness study.
+    if (t >= 6) {
+      this.renderer.setScissorTest(false);
+      this.renderer.clear();
+      return true;
+    }
+
+    let frame = fit(t, 1.5, 3, 0, 44);
+    frame = fit(t, 3, 4, frame, 89);
+    frame = fit(t, 5, 5.5, frame, 209);
+
+    const camera = this.camera;
+    this.coasterInner.position.set(0, 0, 0);
+    this.coasterInner.quaternion.identity();
+    this.coasterInner.scale.set(1, 1, 1);
+    this.coaster.scale.set(1, 1, 1);
+    const fov = table.applyFrame(frame, camera, this.coaster);
+    camera.fov = fov ?? FOV;
+    camera.zoom = 1;
+    if (t < 1) {
+      // The cover slides in with the gallery: slightly zoomed and tilted, settling as it arrives.
+      const settle = fit(t, 0.1, 0.9, 0, 1, sineInOut);
+      camera.zoom = 1.2 - 0.2 * settle;
+      camera.quaternion.multiply(
+        this.q0.setFromAxisAngle(Z_AXIS, ((10 * Math.PI) / 180) * (1 - settle)),
+      );
+    }
+
+    // Where the magazine frame is on screen right now (it slides in from the right).
+    const { width, height } = this;
+    const frameHeight = height * 0.8;
+    const frameWidth = (frameHeight * 85) / 110;
+    const frameLeft = (width - frameWidth) / 2;
+    const frameTop = (height - frameHeight) / 2;
+    const raw = ((rw - 5.5) / 5.25) * GALLERY_LAST;
+    const whole = Math.floor(raw);
+    const index = Math.min(
+      GALLERY_LAST,
+      Math.max(0, whole + fit(raw - whole, 0.1, 0.9, 0, 1, sineInOut)),
+    );
+    const itemLeft = frameLeft + (GALLERY_LAST - index) * frameWidth;
+    const visibleLeft = Math.min(frameLeft + frameWidth, Math.max(frameLeft, itemLeft));
+    const visibleWidth = Math.max(1, frameLeft + frameWidth - visibleLeft);
+
+    // Aim the lens at the frame, then drift right to make room for the features copy.
+    const open = fit(t, 3, 3.5, 0, 1);
+    const fromOffset = (itemLeft + frameWidth / 2) / width - 0.5;
+    const offset = fromOffset + (FEATURES_VIEW_OFFSET - fromOffset) * open;
+    camera.setViewOffset(width, height, -offset * width, 0, width, height);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    this.coaster.updateMatrixWorld();
+
+    const u = this.coasterUniforms;
+    u.uEnv1.value = this.envTable;
+    u.uEnvBlend.value = 0;
+    u.uHeroRatio.value = 0;
+    u.uHighlight.value = 0;
+    u.uExtraBump.value = 0;
+    u.uWrapperRatio.value = 0;
+    u.uWearableBlend.value = 0;
+    u.uZoom.value = 1;
+    u.uLocalLight.value
+      .copy(table.lightPosition)
+      .applyMatrix4(this.m0.copy(this.coasterInner.matrixWorld).invert());
+
+    table.group.visible = true;
+    table.update(camera, this.coasterInner);
+    this.desk.visible = false;
+    if (this.jacket) this.jacket.visible = false;
+    if (this.hand) this.hand.visible = false;
+    if (this.wrapper) this.wrapper.group.visible = false;
+
+    if (this.rise) {
+      const px = frameWidth / 850;
+      const magHide = fit(raw - GALLERY_LAST, 0, 3.2, 0, 1);
+      this.rise.visible = magHide < 0.8;
+      this.riseUniforms.uRect.value.set(
+        itemLeft + 45.19 * px,
+        frameTop + 24.85 * px - fit(magHide, 0.3, 0.8, 0, 60 * px),
+        754.4 * px,
+        268.72 * px,
+      );
+      this.riseUniforms.uViewport.value.set(width, height);
+      this.riseUniforms.uOpacity.value = fit(magHide, 0.3, 0.8, 1, 0);
+    }
+
+    this.renderer.setScissorTest(false);
+    this.renderer.clear();
+    if (t < 4) {
+      // Draw only inside the frame; from 3 the window grows until it covers the screen.
+      const cx = visibleLeft + visibleWidth / 2 + FEATURES_VIEW_OFFSET * width * open;
+      const cy = height / 2;
+      const reachX = Math.max(Math.abs(width - cx), width - Math.abs(width - cx));
+      const reachY = Math.max(Math.abs(height - cy), height - Math.abs(height - cy));
+      const grow = 1 + (Math.max(reachX / visibleWidth, reachY / frameHeight) * 2 - 1) * open;
+      const w = visibleWidth * grow;
+      const h = frameHeight * grow;
+      this.renderer.setScissor(cx - w / 2, height - (cy + h / 2), w, h);
+      this.renderer.setScissorTest(true);
+    }
+    this.renderer.render(this.scene, camera);
+    this.renderer.setScissorTest(false);
+    return true;
+  }
+
   private tick = (time: number) => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.tick);
@@ -547,6 +709,10 @@ export class OryzoStage {
     if (!this.cameraAnimation || !this.coasterAnimation) return;
     // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
     const rw = r - 8;
+    if (this.renderTable(rw, r - 21.25)) {
+      this.idle = false;
+      return;
+    }
     if (rw > 5.3) {
       if (!this.idle) {
         this.renderer.clear();
@@ -555,6 +721,15 @@ export class OryzoStage {
       return;
     }
     this.idle = false;
+
+    this.table.group.visible = false;
+    if (this.rise) this.rise.visible = false;
+    this.camera.zoom = 1;
+    this.camera.fov = FOV;
+    this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+    this.coasterUniforms.uEnv1.value = this.envHero;
+    this.renderer.setScissorTest(false);
 
     const animationRatio = fit(r, 0, 5.5, 0, 1);
     const frame = animationRatio * (this.cameraAnimation.frameCount - 1);
@@ -624,13 +799,4 @@ export class OryzoStage {
     document.removeEventListener("pointerleave", this.onPointerLeave);
     this.renderer.dispose();
   }
-}
-
-function toGeometry(data: BufData) {
-  const geometry = new THREE.BufferGeometry();
-  for (const [id, attr] of Object.entries(data.attributes)) {
-    if (id === "indices") geometry.setIndex(new THREE.BufferAttribute(attr.array, 1));
-    else geometry.setAttribute(id, new THREE.BufferAttribute(attr.array, attr.itemSize));
-  }
-  return geometry;
 }

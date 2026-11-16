@@ -80,7 +80,7 @@ export function WearableLayer() {
                 <div className="oz-wear-item-inner">
                   {item.type === "video" ? (
                     <video src={GALLERY + item.file} muted loop playsInline preload="metadata" />
-                  ) : (
+                  ) : item.id === "outro" ? null : (
                     <img
                       src={GALLERY + item.file}
                       alt=""

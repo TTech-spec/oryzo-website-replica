@@ -104,8 +104,8 @@
 
 .oz-stage-track {
   position: relative;
-  /* 900vh of intro + 1325vh of wearable gallery, all on one pinned stage. */
-  height: 2225vh;
+  /* 900vh of intro + 1325vh of wearable gallery + 650vh of features, all on one pinned stage. */
+  height: 2875vh;
   --hero: 1;
   --pre: 0;
   --pre-x: -1;
@@ -130,6 +130,13 @@
   --mag-fly: 0;
   --mag-num: 1;
   --mag-zoom: 0;
+}
+
+.oz-anchor {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
 }
 
 .oz-stage {
@@ -1008,6 +1015,130 @@
   font-size: 0.84vw;
   text-transform: uppercase;
   opacity: calc(var(--frame-show) * (1 - var(--mag-zoom) * 4));
+}
+
+/* ---------- Features copy over the desk scene ---------- */
+
+.oz-feat {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.oz-stage-track:not([data-feat="on"]) .oz-feat {
+  visibility: hidden;
+}
+
+/* Frosted green panel that wipes in behind the copy. */
+.oz-feat-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(33.2vw * var(--feat-panel, 0));
+  height: 100%;
+  background: rgba(104, 121, 82, 0.16);
+  border-right: 1px solid rgba(255, 237, 215, 0.25);
+  -webkit-backdrop-filter: blur(1.4vw);
+  backdrop-filter: blur(1.4vw);
+  opacity: min(1, var(--feat-panel, 0) * 3);
+}
+
+.oz-feat-items {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 33.2vw;
+  height: 100%;
+}
+
+.oz-feat-item {
+  --in: 0;
+  --out: 0;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6.2vw 5.6vw var(--oz-pad-y) var(--oz-pad-x);
+  visibility: hidden;
+}
+
+.oz-feat-top {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+}
+
+.oz-feat-icon {
+  flex: none;
+  width: 2.6vw;
+  height: 2.6vw;
+  border: 1px dashed rgba(255, 237, 215, 0.8);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--oz-cream) 0 18%, transparent 20%);
+  transform: scale(var(--in));
+}
+
+.oz-feat-tagline {
+  margin: 0;
+  font-size: 1.18vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-transform: uppercase;
+  transform: translateX(calc((1 - var(--in)) * 1em));
+}
+
+.oz-feat-desc {
+  margin: 2.2vw 0 0;
+  font-size: 1.18vw;
+  font-weight: 400;
+  line-height: 1.333;
+  transform: translateY(calc((1 - var(--in)) * 1em));
+}
+
+.oz-feat-item .oz-dashline {
+  width: calc(var(--in) * 100%);
+  opacity: calc(1 - var(--out));
+}
+
+.oz-feat-title {
+  margin: 1.2vw 0 0;
+  font-size: 3.05vw;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  transform: translateY(calc((1 - var(--in)) * 0.6em));
+}
+
+.oz-feat-extra {
+  --in: 0;
+  position: absolute;
+  right: var(--oz-pad-x);
+  bottom: var(--oz-pad-y);
+  display: flex;
+  align-items: flex-end;
+  gap: 1.6vw;
+  text-align: right;
+  visibility: hidden;
+}
+
+.oz-feat-extra p {
+  margin: 0;
+  font-size: 0.78vw;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.oz-feat-extra p span {
+  display: block;
+}
+
+.oz-feat-extra strong {
+  font-family: "Literata", Georgia, serif;
+  font-size: 1.9vw;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* ---------- Film overlay ---------- */

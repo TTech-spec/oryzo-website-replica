@@ -11,7 +11,8 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Interaction**: desk props fly in on load and scatter when the pointer brushes them; the hand's fingers curl when you hover them during the highlight.
 - **Wearable gallery**: "So portable, it's wearable" — the coaster spins while a red foil wrapper closes around it, the wrapper tears open (a baked simulation played from a texture), and the coaster flies back to land on the jacket photo while the headline slides past behind it. Then a framed gallery steps sideways through eight scenes (two videos, the bikini prompt, the stunt warning) and ends on the RISE magazine cover, which opens up to fill the screen.
 - **Hero UI**: wordmark, intro copy, studio card, and a film button that opens the Vimeo player.
-- **Remaining sections** (the 3D desk scene the magazine zooms into, features, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Desk scene**: the magazine cover is a live 3D window onto the desk set. Desk, wall and pegboard are baked-texture meshes with ray-marched contact shadows; the props (keyboard, controller, pegboard clutter) are Gaussian splats; the coffee cup drops onto the coaster. The frame then opens to full screen and the baked features camera move plays with the Elevate, Thermodynamic stability and More Circular copy.
+- **Remaining sections** (thermal and roundness effects, flip encryption, grip, sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
 ## Tech stack
 
@@ -30,6 +31,10 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/stage.ts` | Three.js scene: desk layer, coaster, hand, lighting, scroll timeline |
 | `src/lib/oryzo3d/shaders.ts` | GLSL for the coaster, hand and desk props |
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
+| `src/components/oryzo/FeaturesLayer.tsx` | Features copy shown over the desk scene |
+| `src/lib/oryzo3d/table.ts` | Desk set: surfaces, coffee cup, baked features animation |
+| `src/lib/oryzo3d/splats.ts` | Gaussian splat loader and renderer for `.sog` files |
+| `src/lib/oryzo3d/anim.ts` | Baked transform tracks and geometry helpers |
 | `src/lib/oryzo3d/wrapper.ts` | Foil wrapper tear driven by a baked animation texture |
 | `src/lib/oryzo3d/handRig.ts` | Finger joints rebuilt from the baked skinning data |
 | `src/lib/oryzo3d/buf.ts` | Decoder for the `.buf` geometry and animation files |
@@ -60,7 +65,8 @@ Scroll position is measured in viewport heights. The first ten screens are pinne
 2. `0 – 5.5`: the camera and coaster play through 116 baked frames (lift, flip, settle).
 3. From frame 71 the hand rises under the coaster, skinned on the GPU from 36 baked bones.
 4. `5.5 – 8`: the "Powered by AI" highlight glow.
-5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8.
+5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8. From 18 the desk set renders inside the magazine frame.
+6. `21.25 – 27.75`: the frame opens to full screen and the features camera move plays.
 
 ## Deploying to Vercel
 

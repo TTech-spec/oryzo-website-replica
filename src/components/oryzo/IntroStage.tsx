@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { FeaturesLayer } from "@/components/oryzo/FeaturesLayer";
 import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
 import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
 
@@ -115,7 +116,35 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       set("--mag-a", a);
       set("--mag-fly", cubicIn(a));
       set("--mag-num", fit(fit(a, 0, 0.75, 0, 1), 0, 1, 1, 0.1, backIn));
-      set("--mag-zoom", fit(rw, 10.9, 13.1, 0, 1, cubicInOut));
+      set("--mag-zoom", 0);
+    };
+
+    const featureItems = Array.from(root.querySelectorAll<HTMLElement>(".oz-feat-item"));
+    const featureExtras = Array.from(root.querySelectorAll<HTMLElement>(".oz-feat-extra"));
+
+    // Features copy: each item fades in over 0.625 viewports, holds, and hands over to the next.
+    const applyFeatures = (a: number) => {
+      const active = a > 0 && a < 6.6;
+      root.dataset["feat"] = active ? "on" : "off";
+      if (!active) return;
+      let first = 0;
+      let lastOut = 0;
+      featureItems.forEach((item, i) => {
+        const start = 0.5 + i * 2;
+        const show = fit(a, start, start + 0.625, 0, 1);
+        const gone = fit(a, start + 1.375, start + 2, 0, 1);
+        if (i === 0) first = show;
+        lastOut = gone;
+        const opacity = fit(show, 0, 0.5, 0, 1) * fit(gone, 0.5, 1, 1, 0);
+        for (const el of [item, featureExtras[i]]) {
+          if (!el) continue;
+          el.style.setProperty("--in", cubicOut(show).toFixed(4));
+          el.style.setProperty("--out", gone.toFixed(4));
+          el.style.opacity = opacity.toFixed(4);
+          el.style.visibility = opacity > 0 ? "visible" : "hidden";
+        }
+      });
+      root.style.setProperty("--feat-panel", (cubicOut(first) * (1 - lastOut)).toFixed(4));
     };
 
     const applyFrame = ({ r, heroActive }: StageFrame) => {
@@ -140,6 +169,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       set("--warm", fit(r, 3.5, 5.5, 0, 1));
       root.dataset["phase"] = heroActive > 0 ? "hero" : "ai";
       applyWearable(r - 8);
+      applyFeatures(r - 21.25);
     };
 
     void import("@/lib/oryzo3d/stage").then(({ OryzoStage }) => {
@@ -157,6 +187,8 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
 
   return (
     <section className="oz-stage-track" id="intro" ref={rootRef} data-ready={ready}>
+      {/* Scroll target for the Features nav link: where the first feature has faded in. */}
+      <span id="features" className="oz-anchor" style={{ top: "2240vh" }} />
       <div className="oz-stage">
         <div className="oz-stage-bg" aria-hidden="true" />
         <WearableHeadline />
@@ -259,6 +291,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
         </div>
 
         <WearableLayer />
+        <FeaturesLayer />
       </div>
     </section>
   );

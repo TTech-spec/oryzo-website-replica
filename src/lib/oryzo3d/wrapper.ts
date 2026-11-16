@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-import { loadBuf, type BufData } from "./buf";
+import { toGeometry } from "./anim";
+import { loadBuf } from "./buf";
 import { wrapperFragment, wrapperVertex } from "./shaders";
 
 const BONES = 1024;
@@ -135,13 +136,4 @@ export class Wrapper {
     this.shared.uOffset.value = fit01(frame, 18, 32) * 0.3;
     this.shared.uOpacity.value = this.opacity;
   }
-}
-
-function toGeometry(data: BufData) {
-  const geometry = new THREE.BufferGeometry();
-  for (const [id, attr] of Object.entries(data.attributes)) {
-    if (id === "indices") geometry.setIndex(new THREE.BufferAttribute(attr.array, 1));
-    else geometry.setAttribute(id, new THREE.BufferAttribute(attr.array, attr.itemSize));
-  }
-  return geometry;
 }
