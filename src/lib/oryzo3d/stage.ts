@@ -1,6 +1,9 @@
 import * as THREE from "three";
 
 import { floatAttribute, loadBuf, type BufData } from "./buf";
+import { DeskProps, PLANE_HEIGHT, PLANE_WIDTH } from "./deskProps";
+import { HandRig } from "./handRig";
+import { coasterFragment, coasterVertex, HAND_BONES, handFragment, handVertex } from "./shaders";
 
 const MODEL_PATH = "/oryzo/models/";
 const TEXTURE_PATH = "/oryzo/textures/";
@@ -8,28 +11,12 @@ const TEXTURE_PATH = "/oryzo/textures/";
 // Camera constants of the baked scene (50mm lens on a 41.4mm-wide 2240x1260 gate).
 const VIEW_WIDTH = 2240;
 const VIEW_HEIGHT = 1260;
-const PLANE_WIDTH = 3296;
-const PLANE_HEIGHT = 1460;
 const FOV = (2 * Math.atan((VIEW_HEIGHT * 41.4) / VIEW_WIDTH / 2 / 50) * 180) / Math.PI;
 
 const HAND_FRAME_START = 71;
-const HAND_BONES = 36;
 
 const HERO_LIGHT = new THREE.Vector3(0.346682, 1.00875, -0.368255);
 const HAND_LIGHT = new THREE.Vector3(0.0237565, 0.77265, 0.435661);
-
-// Desk props, positioned in the 3296x1460 desk image space (y down, degrees clockwise).
-const PROPS: Record<
-  string,
-  { x: number; y: number; width: number; height: number; angle: number }
-> = {
-  pencil: { x: 500, y: 1106, width: 128, height: 1320, angle: 52 },
-  eraser: { x: 924.24, y: 1186.49, width: 180, height: 280, angle: 30.68 },
-  cutter: { x: 2574.44, y: 1200.85, width: 192, height: 1024, angle: -55.61 },
-  pen: { x: 2040.69, y: 220.92, width: 136, height: 960, angle: -35 },
-  paperclip1: { x: 677.11, y: 458.27, width: 100, height: 234, angle: -40.78 },
-  paperclip2: { x: 350, y: 646.79, width: 100, height: 234, angle: 47.75 },
-};
 
 export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 /** Remap v from [a, b] to [c, d], clamped, with an optional ease. */
@@ -84,74 +71,8 @@ export interface StageFrame {
   heroActive: number;
 }
 
-const handVertex = /* glsl */ `
-  attribute vec4 boneIndices;
-  attribute vec4 boneWeights;
-  uniform sampler2D uSkinPosition;
-  uniform sampler2D uSkinOrient;
-  uniform vec2 uUvOffset1;
-  uniform vec2 uUvOffset2;
-  varying vec2 vUv1;
-  varying vec2 vUv2;
-
-  vec3 qrotate(vec4 q, vec3 v) {
-    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
-  }
-  void applySkin(inout vec3 pos, float boneIndex, float boneWeight) {
-    vec2 skinUv = vec2((boneIndex + 0.5) / ${HAND_BONES}.0, 0.5);
-    vec4 quat = texture2D(uSkinOrient, skinUv);
-    pos += (qrotate(quat, position) + texture2D(uSkinPosition, skinUv).xyz) * boneWeight;
-  }
-  void main() {
-    vec3 pos = vec3(0.0);
-    applySkin(pos, boneIndices.x, boneWeights.x);
-    applySkin(pos, boneIndices.y, boneWeights.y);
-    applySkin(pos, boneIndices.z, boneWeights.z);
-    applySkin(pos, boneIndices.w, boneWeights.w);
-    vUv1 = uv * 0.5 + uUvOffset1;
-    vUv2 = uv * 0.5 + uUvOffset2;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-  }
-`;
-
-const handFragment = /* glsl */ `
-  uniform sampler2D uHandTexture;
-  uniform float uUvBlend;
-  uniform float uOpacity;
-  uniform float uHighlight;
-  uniform vec2 uResolution;
-  varying vec2 vUv1;
-  varying vec2 vUv2;
-  void main() {
-    vec3 albedo = mix(texture2D(uHandTexture, vUv1).rgb, texture2D(uHandTexture, vUv2).rgb, uUvBlend);
-    float screenY = gl_FragCoord.y / uResolution.y;
-    float opacity = smoothstep(0.0, 1.0, uOpacity * 2.0 - (0.5 - min(0.5, screenY) * 2.0));
-    vec3 color = albedo * (1.0 + uHighlight * 1.5);
-    gl_FragColor = vec4(color, opacity);
-  }
-`;
-
-const propVertex = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const propFragment = /* glsl */ `
-  uniform sampler2D uColor;
-  uniform sampler2D uAlpha;
-  uniform float uOpacity;
-  uniform float uShadow;
-  varying vec2 vUv;
-  void main() {
-    // The colour sheet holds four lighting variants side by side; use the first.
-    vec3 color = texture2D(uColor, vec2(vUv.x * 0.25, vUv.y)).rgb;
-    float alpha = texture2D(uAlpha, vUv).r;
-    gl_FragColor = vec4(mix(color, vec3(0.0), uShadow), alpha * uOpacity * mix(1.0, 0.35, uShadow));
-  }
-`;
+const floatTexture = (data: Float32Array) =>
+  new THREE.DataTexture(data, HAND_BONES, 1, THREE.RGBAFormat, THREE.FloatType);
 
 export class OryzoStage {
   private renderer: THREE.WebGLRenderer;
@@ -161,35 +82,35 @@ export class OryzoStage {
   private scene2D = new THREE.Scene();
 
   private coaster = new THREE.Object3D();
-  private coasterMaterial?: THREE.MeshStandardMaterial;
-  private light = new THREE.PointLight(0xfff1e0, 0, 0, 2);
-  private ambient = new THREE.HemisphereLight(0xfff4e6, 0x6b4a36, 1);
-  private rimLight = new THREE.DirectionalLight(0xffb070, 0);
+  private lightPosition = new THREE.Vector3();
+  private coasterUniforms = {
+    uDiffuse: { value: null as THREE.Texture | null },
+    uHeight: { value: null as THREE.Texture | null },
+    uEnv1: { value: null as THREE.Texture | null },
+    uEnv2: { value: null as THREE.Texture | null },
+    uBrdf: { value: null as THREE.Texture | null },
+    uEnvBlend: { value: 0 },
+    uLocalLight: { value: new THREE.Vector3(0, 1, 0) },
+    uHighlight: { value: 0 },
+    uExtraBump: { value: 0 },
+    uHeroRatio: { value: 1 },
+    uTime: { value: 0 },
+  };
 
   private cameraAnimation?: FrameAnimation;
   private coasterAnimation?: FrameAnimation;
 
   private hand?: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+  private handRig?: HandRig;
   private handPositions?: Float32Array;
   private handOrients?: Float32Array;
   private handFrameCount = 0;
+  private fingerWeights = [0, 0, 0, 0];
+  private fingerVelocities = [0, 0, 0, 0];
   private skinPositionData = new Float32Array(HAND_BONES * 4);
   private skinOrientData = new Float32Array(HAND_BONES * 4);
-  private skinPositionTexture = new THREE.DataTexture(
-    this.skinPositionData,
-    HAND_BONES,
-    1,
-    THREE.RGBAFormat,
-    THREE.FloatType,
-  );
-  private skinOrientTexture = new THREE.DataTexture(
-    this.skinOrientData,
-    HAND_BONES,
-    1,
-    THREE.RGBAFormat,
-    THREE.FloatType,
-  );
-
+  private skinPositionTexture = floatTexture(this.skinPositionData);
+  private skinOrientTexture = floatTexture(this.skinOrientData);
   private handUniforms = {
     uSkinPosition: { value: this.skinPositionTexture },
     uSkinOrient: { value: this.skinOrientTexture },
@@ -199,11 +120,13 @@ export class OryzoStage {
     uUvBlend: { value: 0 },
     uOpacity: { value: 1 },
     uHighlight: { value: 0 },
+    uTime: { value: 0 },
+    uFingerWeights: { value: new THREE.Vector4() },
     uResolution: { value: new THREE.Vector2(1, 1) },
   };
 
   private desk = new THREE.Group();
-  private propOpacities: { value: number }[] = [];
+  private deskProps?: DeskProps;
   private baseMaterial = new THREE.MeshBasicMaterial({
     transparent: true,
     depthTest: false,
@@ -214,13 +137,18 @@ export class OryzoStage {
   private width = 1;
   private height = 1;
   private scroll = 0;
+  private time = 0;
   private raf = 0;
   private lastTime = 0;
   private disposed = false;
+  /** Pointer in normalised stage coordinates (-1..1, y up); null while outside the stage. */
+  private pointer: THREE.Vector2 | null = null;
+  private deskPointer = new THREE.Vector2();
   private v0 = new THREE.Vector3();
   private v1 = new THREE.Vector3();
   private q0 = new THREE.Quaternion();
   private q1 = new THREE.Quaternion();
+  private m0 = new THREE.Matrix4();
 
   onFrame?: (frame: StageFrame) => void;
   onReady?: () => void;
@@ -230,16 +158,35 @@ export class OryzoStage {
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.autoClear = false;
 
-    this.scene.add(this.coaster, this.light, this.ambient, this.rimLight);
+    this.scene.add(this.coaster);
     this.scene2D.add(this.desk);
     this.camera2D.position.z = 5;
 
     this.resize();
     window.addEventListener("resize", this.resize);
+    window.addEventListener("pointermove", this.onPointerMove);
+    document.addEventListener("pointerleave", this.onPointerLeave);
     this.scroll = window.scrollY;
     void this.load();
     this.raf = requestAnimationFrame(this.tick);
   }
+
+  private onPointerMove = (event: PointerEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    if (event.clientY < rect.top || event.clientY > rect.bottom) {
+      this.pointer = null;
+      return;
+    }
+    this.pointer ??= new THREE.Vector2();
+    this.pointer.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+    );
+  };
+
+  private onPointerLeave = () => {
+    this.pointer = null;
+  };
 
   private async load() {
     const loader = new THREE.TextureLoader();
@@ -249,7 +196,7 @@ export class OryzoStage {
       return t;
     };
 
-    // Desk image + props (2D layer).
+    // Desk image, coaster shadow and props (2D layer).
     this.baseMaterial.map = tex("hero/BASE.webp", true);
     const base = new THREE.Mesh(
       new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT),
@@ -281,48 +228,8 @@ export class OryzoStage {
     this.shadow.renderOrder = 1;
     this.desk.add(this.shadow);
 
-    for (const [id, prop] of Object.entries(PROPS)) {
-      const uniforms = {
-        uColor: { value: tex(`hero/${id}_color.webp`) },
-        uAlpha: { value: tex(`hero/${id}_alpha.webp`) },
-        uOpacity: { value: 1 },
-        uShadow: { value: 0 },
-      };
-      const geometry = new THREE.PlaneGeometry(prop.width, prop.height);
-      const place = (mesh: THREE.Mesh, dx: number, dy: number) => {
-        mesh.position.set(prop.x - PLANE_WIDTH / 2 + dx, -(prop.y - PLANE_HEIGHT / 2) + dy, 0);
-        mesh.rotation.z = (-prop.angle * Math.PI) / 180;
-      };
-      const shadowUniforms = { ...uniforms, uOpacity: { value: 1 }, uShadow: { value: 1 } };
-      const shadowMesh = new THREE.Mesh(
-        geometry,
-        new THREE.ShaderMaterial({
-          uniforms: shadowUniforms,
-          vertexShader: propVertex,
-          fragmentShader: propFragment,
-          transparent: true,
-          depthTest: false,
-          depthWrite: false,
-        }),
-      );
-      place(shadowMesh, -14, -16);
-      shadowMesh.renderOrder = 2;
-      const mesh = new THREE.Mesh(
-        geometry,
-        new THREE.ShaderMaterial({
-          uniforms,
-          vertexShader: propVertex,
-          fragmentShader: propFragment,
-          transparent: true,
-          depthTest: false,
-          depthWrite: false,
-        }),
-      );
-      place(mesh, 0, 0);
-      mesh.renderOrder = 3;
-      this.desk.add(shadowMesh, mesh);
-      this.propOpacities.push(uniforms.uOpacity, shadowUniforms.uOpacity);
-    }
+    this.deskProps = new DeskProps((path) => tex(path));
+    this.desk.add(this.deskProps.group);
 
     const [coasterData, cameraData, coasterAnimData, handData, handAnimData] = await Promise.all([
       loadBuf(MODEL_PATH + "coaster.buf"),
@@ -336,29 +243,43 @@ export class OryzoStage {
     this.cameraAnimation = new FrameAnimation(cameraData);
     this.coasterAnimation = new FrameAnimation(coasterAnimData);
 
-    // Coaster.
-    const diffuse = tex("coaster/DIFF.webp", true);
+    // Coaster: cork albedo + height map, lit by two cross-fading environment maps.
+    const diffuse = tex("coaster/DIFF.webp");
     const height = tex("coaster/HEIGHT.webp");
     for (const t of [diffuse, height]) {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = 8;
-      t.repeat.set(2.5, 2.5);
     }
-    this.coasterMaterial = new THREE.MeshStandardMaterial({
-      map: diffuse,
-      bumpMap: height,
-      bumpScale: 0.35,
-      roughness: 0.85,
-      metalness: 0,
-    });
-    this.coaster.add(new THREE.Mesh(toGeometry(coasterData), this.coasterMaterial));
+    const env = (path: string) => {
+      const t = tex(path);
+      t.wrapS = THREE.RepeatWrapping;
+      t.minFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      return t;
+    };
+    const u = this.coasterUniforms;
+    u.uDiffuse.value = diffuse;
+    u.uHeight.value = height;
+    u.uEnv1.value = env("hero/env_hero.webp");
+    u.uEnv2.value = env("hero/env_hand.webp");
+    u.uBrdf.value = tex("brdf.png");
+    this.coaster.add(
+      new THREE.Mesh(
+        toGeometry(coasterData),
+        new THREE.ShaderMaterial({
+          uniforms: u,
+          vertexShader: coasterVertex,
+          fragmentShader: coasterFragment,
+        }),
+      ),
+    );
 
     // Hand: skinned on the GPU from a baked per-bone position / orientation track.
     this.handPositions = floatAttribute(handAnimData, "position");
     this.handOrients = floatAttribute(handAnimData, "orient");
     this.handFrameCount = this.handPositions.length / HAND_BONES / 3;
-    const handTexture = tex("hero/AI_HAND.webp");
-    this.handUniforms.uHandTexture.value = handTexture;
+    if (handAnimData.sceneData) this.handRig = new HandRig(handAnimData.sceneData);
+    this.handUniforms.uHandTexture.value = tex("hero/AI_HAND.webp");
     this.hand = new THREE.Mesh(
       toGeometry(handData),
       new THREE.ShaderMaterial({
@@ -372,6 +293,7 @@ export class OryzoStage {
     this.hand.visible = false;
     this.scene.add(this.hand);
 
+    this.deskProps.startIntro();
     this.onReady?.();
   }
 
@@ -393,12 +315,29 @@ export class OryzoStage {
     this.desk.scale.setScalar(this.height / VIEW_HEIGHT);
   };
 
-  private updateHand(frame: number, r: number) {
+  /** Each finger reacts when the pointer passes over its height band in the lower-middle of the screen. */
+  private updateFingers(dt: number, active: number) {
+    for (let p = 0; p < 4; p++) {
+      let target = 0;
+      if (this.pointer && active > 0) {
+        target = 1 - Math.abs(fit(this.pointer.y, -0.2 - p * 0.1, -0.7 - p * 0.1, 0, 1) - 0.5) * 2;
+        target *= fit(Math.abs(this.pointer.x), 0.2, 0.3, 1, 0);
+      }
+      // Slightly under-damped spring so the fingers overshoot and settle.
+      const weight = this.fingerWeights[p] ?? 0;
+      let velocity = this.fingerVelocities[p] ?? 0;
+      velocity += ((target - weight) * 90 - velocity * 9) * dt;
+      this.fingerVelocities[p] = velocity;
+      this.fingerWeights[p] = weight + velocity * dt;
+    }
+  }
+
+  private updateHand(dt: number, frame: number, r: number, highlight: number) {
     const hand = this.hand;
     if (!hand || !this.handPositions || !this.handOrients) return;
     const handOpacity = fit(r, 8, 9, 1, 0);
-    const ratio = fit(frame, HAND_FRAME_START, 115, 0, 1);
-    hand.visible = ratio > 0 && handOpacity > 0;
+    const ratio = fit(frame, HAND_FRAME_START, 115, 0, 1) * handOpacity;
+    hand.visible = ratio > 0;
     if (!hand.visible) return;
 
     const f = ratio * (this.handFrameCount - 1);
@@ -413,11 +352,17 @@ export class OryzoStage {
       this.q1.fromArray(this.handOrients, (j * HAND_BONES + b) * 4);
       this.q0.slerp(this.q1, t).toArray(this.skinOrientData, b * 4);
     }
+
+    const fingersActive = highlight;
+    this.updateFingers(dt, fingersActive);
+    const weights = this.fingerWeights.map((w) => w * fingersActive);
+    if (ratio === 1 && fingersActive > 0) {
+      this.handRig?.apply(this.skinPositionData, this.skinOrientData, weights);
+    }
     this.skinPositionTexture.needsUpdate = true;
     this.skinOrientTexture.needsUpdate = true;
 
     // The hand texture is a 2x2 sheet of baked lighting states that cross-fade as the hand rises.
-    const fingersActive = fit(r, 5.5, 6, 0, 1) * fit(r, 7.5, 8, 1, 0);
     const l = fit(f, 20, 40, 0, 2, cubicOut);
     let a = Math.floor(l);
     let b = Math.ceil(l);
@@ -430,9 +375,11 @@ export class OryzoStage {
     const u = this.handUniforms;
     u.uUvOffset1.value.set((a % 2) / 2, (a >> 1) / 2);
     u.uUvOffset2.value.set((b % 2) / 2, (b >> 1) / 2);
-    u.uUvBlend.value = Math.max(blend, 0);
+    u.uUvBlend.value = blend;
     u.uOpacity.value = handOpacity;
-    u.uHighlight.value = fingersActive * 0.25;
+    u.uHighlight.value = highlight;
+    u.uTime.value = this.time * 0.25;
+    u.uFingerWeights.value.fromArray(weights);
     this.renderer.getDrawingBufferSize(u.uResolution.value);
   }
 
@@ -441,6 +388,7 @@ export class OryzoStage {
     this.raf = requestAnimationFrame(this.tick);
     const dt = Math.min(0.1, (time - this.lastTime) / 1000 || 0.016);
     this.lastTime = time;
+    this.time += dt;
 
     // Ease towards the real scroll position so the camera glides instead of stepping.
     const target = window.scrollY;
@@ -460,32 +408,46 @@ export class OryzoStage {
     this.cameraAnimation.apply(this.camera, frame);
     this.coasterAnimation.apply(this.coaster, frame);
     this.camera.updateMatrixWorld();
+    this.coaster.updateMatrixWorld();
 
-    // Lighting: bright desk light in the hero, a low warm key once the scene goes dark.
-    const dark = 1 - heroActive;
+    // Lighting moves from the desk lamp to the dark "hand" set as the coaster flips.
+    const highlight = fit(r, 5.5, 6, 0, 1) * fit(r, 7.5, 8, 1, 0);
     const lightBlend = fit(frame, 47, 73, 0, 1);
-    this.light.position.copy(HERO_LIGHT).lerp(HAND_LIGHT, lightBlend);
-    this.light.intensity = 0.55 + 0.15 * dark;
-    this.ambient.intensity = 2.6 - 1.7 * dark;
-    this.rimLight.position.set(-0.4, 1.2, -0.8);
-    this.rimLight.intensity = 2.2 * dark * (1 - lightBlend * 0.6);
+    this.lightPosition.copy(HERO_LIGHT).lerp(HAND_LIGHT, lightBlend);
+    const u = this.coasterUniforms;
+    u.uLocalLight.value
+      .copy(this.lightPosition)
+      .applyMatrix4(this.m0.copy(this.coaster.matrixWorld).invert());
+    u.uEnvBlend.value = lightBlend;
+    u.uHeroRatio.value = heroActive;
+    u.uHighlight.value = highlight;
+    u.uExtraBump.value = fit(animationRatio, 0.45, 0.5, 1.75, 0);
+    u.uTime.value = this.time * 0.25;
 
-    this.updateHand(frame, r);
+    this.updateHand(dt, frame, r, highlight);
 
     // Desk layer fades out as the hero scrolls away.
     this.desk.visible = heroActive > 0;
-    this.baseMaterial.opacity = heroActive;
-    for (const opacity of this.propOpacities) opacity.value = heroActive;
-    if (this.shadow) {
-      this.v0.copy(this.coaster.position).project(this.camera);
+    if (this.desk.visible) {
       const s = this.desk.scale.x;
-      this.shadow.position.set(
-        (this.v0.x * this.width) / 2 / s - 30,
-        (this.v0.y * this.height) / 2 / s - 34,
-        0,
-      );
-      this.shadow.scale.setScalar(620);
-      this.shadow.material.opacity = heroActive * 0.9;
+      this.baseMaterial.opacity = heroActive;
+      const pointer = this.pointer
+        ? this.deskPointer.set(
+            (this.pointer.x * this.width) / 2 / s,
+            (this.pointer.y * this.height) / 2 / s,
+          )
+        : null;
+      this.deskProps?.update(dt, pointer, heroActive);
+      if (this.shadow) {
+        this.v0.copy(this.coaster.position).project(this.camera);
+        this.shadow.position.set(
+          (this.v0.x * this.width) / 2 / s - 30,
+          (this.v0.y * this.height) / 2 / s - 34,
+          0,
+        );
+        this.shadow.scale.setScalar(620);
+        this.shadow.material.opacity = heroActive * 0.9;
+      }
     }
 
     this.renderer.clear();
@@ -498,6 +460,8 @@ export class OryzoStage {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.resize);
+    window.removeEventListener("pointermove", this.onPointerMove);
+    document.removeEventListener("pointerleave", this.onPointerLeave);
     this.renderer.dispose();
   }
 }

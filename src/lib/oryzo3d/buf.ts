@@ -24,7 +24,18 @@ export interface BufAttribute {
   count: number;
 }
 
+/** A node of the optional scene graph some files carry (used for the hand's finger bones). */
+export interface BufSceneNode {
+  name: string;
+  parentIndex: number;
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  scale: [number, number, number];
+  data?: { parentIdx?: { value: number }; parentMatrix?: { value: number[] } };
+}
+
 export interface BufData {
+  sceneData?: BufSceneNode[];
   vertexCount: number;
   indexCount: number;
   attributes: Record<string, BufAttribute>;
@@ -44,6 +55,7 @@ export function parseBuf(buffer: ArrayBuffer): BufData {
     vertexCount: number;
     indexCount: number;
     attributes: HeaderAttribute[];
+    sceneData?: BufSceneNode[];
   };
 
   let offset = 4 + headerLength;
@@ -78,7 +90,12 @@ export function parseBuf(buffer: ArrayBuffer): BufData {
     attributes[attr.id] = { array, itemSize: attr.componentSize, count };
   }
 
-  return { vertexCount: header.vertexCount, indexCount: header.indexCount, attributes };
+  return {
+    vertexCount: header.vertexCount,
+    indexCount: header.indexCount,
+    attributes,
+    ...(header.sceneData ? { sceneData: header.sceneData } : {}),
+  };
 }
 
 export async function loadBuf(url: string): Promise<BufData> {
