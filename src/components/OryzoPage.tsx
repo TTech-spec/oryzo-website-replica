@@ -13,8 +13,9 @@ import heroImage from "@/assets/oryzo-hero.jpg";
 import { IntroStage } from "@/components/oryzo/IntroStage";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { SustainabilityStats } from "@/components/oryzo/SustainabilityLayer";
+import { Testimonials } from "@/components/oryzo/Testimonials";
 import { Button } from "@/components/ui/button";
-import { campaignCards, coasterModels, reviewCards } from "@/lib/oryzo";
+import { campaignCards, coasterModels } from "@/lib/oryzo";
 
 const FILM_URL = "https://player.vimeo.com/video/1174820580?h=5aaa6219d2&autoplay=1";
 
@@ -56,47 +57,7 @@ export function OryzoPage() {
 
       <SustainabilityStats />
 
-      <section className="testimonials">
-        <div className="testimonials-heading">
-          <div>
-            <p className="section-kicker">
-              <span className="status-dot" /> Unsolicited. Allegedly.
-            </p>
-            <h2>
-              People all around
-              <br />
-              the world love <span>Oryzo.</span>
-            </h2>
-          </div>
-          <p>Do not take our word for it. See what people say after living with Oryzo.</p>
-        </div>
-        <div className="reviews-bar">
-          <span>RATING & REVIEWS</span>
-          <span>CUSTOM REVIEWS&nbsp; [ 364 ]</span>
-          <span>4.9 / 5&nbsp; ★★★★★</span>
-          <span>ORYZO IN USE</span>
-        </div>
-        <div className="review-list">
-          {reviewCards.map((review, index) => (
-            <article className="review-row" key={review.name}>
-              <div className="review-count">0{index + 1}</div>
-              <div className="review-rating">
-                <span>★ ★ ★ ★ ★</span>
-                <b>[ {review.rating} ]</b>
-              </div>
-              <p className="review-quote">“{review.quote}”</p>
-              <div className="review-person">
-                <img src={review.image} alt="" width={56} height={56} loading="lazy" />
-                <div>
-                  <b>{review.name}</b>
-                  <span>{review.role}</span>
-                </div>
-              </div>
-              <ArrowUpRight className="review-arrow" aria-hidden="true" />
-            </article>
-          ))}
-        </div>
-      </section>
+      <Testimonials />
 
       <section className="campaign-wall" aria-labelledby="campaign-wall-heading">
         <div className="campaign-heading">

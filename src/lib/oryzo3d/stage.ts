@@ -16,6 +16,7 @@ import {
   propVertex,
 } from "./shaders";
 import { MessageText } from "./messageText";
+import { stackState } from "./stackState";
 import { SustainabilityScene } from "./sustainability";
 import { TableScene } from "./table";
 import { Wrapper } from "./wrapper";
@@ -44,6 +45,24 @@ const flatFragment = /* glsl */ `
   void main() {
     vec4 texel = texture2D(uTexture, vUv);
     gl_FragColor = vec4(texel.rgb, texel.a * uOpacity);
+  }
+`;
+
+// Backdrop for the floating coaster: near-black with a warm glow from the top of the screen.
+const haloFragment = /* glsl */ `
+  uniform vec2 uResolution;
+  uniform vec2 uOffset;
+  uniform float uSize;
+  void main() {
+    vec2 uv = (gl_FragCoord.xy / uResolution - uOffset) * vec2(1.0, uResolution.y / uResolution.x);
+    float d = clamp(length(uv / uSize), 0.0, 1.0);
+    vec3 color = mix(vec3(0.0048, 0.0024, 0.0012), vec3(0.1529, 0.0409, 0.0080), pow(1.0 - d, 4.0));
+    gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);
+  }
+`;
+const haloVertex = /* glsl */ `
+  void main() {
+    gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 
@@ -106,7 +125,9 @@ const THERMAL_BLOOM: BloomSettings = {
 };
 
 const WEARABLE_LIGHT = new THREE.Vector3(-10, -2, 6);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const DIAGONAL = new THREE.Vector3(1, 1, 1).normalize();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 // The wrapper model is authored lying flat; these stand it up around the coaster.
 const WRAPPER_ROT_X = new THREE.Quaternion().setFromAxisAngle(
@@ -182,6 +203,7 @@ export class OryzoStage {
     uTextMap: { value: null as THREE.Texture | null },
     uTextOpacity: { value: 0 },
     uFlipRot: { value: new Float32Array([1, 0, 0, 1]) },
+    uDim: { value: 1 },
   };
   // Flip encryption: the message lives on the coaster's underside; flipping hides or reveals it.
   private flipTrack?: FrameAnimation;
@@ -265,6 +287,16 @@ export class OryzoStage {
   private lastTime = 0;
   private disposed = false;
   private idle = false;
+  /** Pixels the pinned stage has scrolled up past the top of the screen. */
+  private stageShift = 0;
+  private haloScene = new THREE.Scene();
+  private haloUniforms = {
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uOffset: { value: new THREE.Vector2(0.5, 1) },
+    uSize: { value: 1 },
+  };
+  private quadCamera = new THREE.Camera();
+  private track: HTMLElement | null = null;
   private table = new TableScene();
   private sustainability = new SustainabilityScene();
   private easedPointer = new THREE.Vector2();
@@ -313,6 +345,19 @@ export class OryzoStage {
 
     this.scene.add(this.coaster);
     this.scene2D.add(this.desk);
+    this.track = canvas.closest<HTMLElement>(".oz-stage-track");
+    const halo = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.ShaderMaterial({
+        uniforms: this.haloUniforms,
+        vertexShader: haloVertex,
+        fragmentShader: haloFragment,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    halo.frustumCulled = false;
+    this.haloScene.add(halo);
     this.camera2D.position.z = 5;
 
     this.resize();
@@ -559,9 +604,8 @@ export class OryzoStage {
   }
 
   private resize = () => {
-    const parent = this.canvas.parentElement;
-    this.width = parent?.clientWidth || window.innerWidth;
-    this.height = parent?.clientHeight || window.innerHeight;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
     this.renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
     this.renderer.setSize(this.width, this.height, false);
     this.camera.aspect = this.width / this.height;
@@ -736,6 +780,83 @@ export class OryzoStage {
   }
 
   /**
+   * The coaster floating beside the sections below the pinned stage.
+   * @param clear whether this is the only thing drawn this frame
+   * @returns true when it drew
+   */
+  private renderStack(clear: boolean) {
+    const state = stackState;
+    if (!state.active || state.animation <= 0 || !this.cameraAnimation) return false;
+    const { width, height } = this;
+    const animation = state.animation;
+
+    // Standing on its edge facing the lens, then tumbling about a diagonal axis.
+    this.coaster.position.set(0, 0, 0);
+    this.coaster.quaternion.identity();
+    this.coaster.scale.set(1, 1, 1);
+    const inner = this.coasterInner;
+    inner.position.set(0, -0.00860424, 0);
+    inner.quaternion.identity();
+    inner.scale.set(1, 1, 1);
+    this.q0.setFromAxisAngle(X_AXIS, fit(animation, 2, 3, Math.PI / 2, 0));
+    inner.position.applyQuaternion(this.q0);
+    inner.quaternion.premultiply(this.q0);
+    this.q0.setFromAxisAngle(DIAGONAL, fit(animation, 1, 2, 0, Math.PI * 2 * -3));
+    inner.position.applyQuaternion(this.q0);
+    inner.quaternion.premultiply(this.q0);
+
+    const camera = this.camera;
+    camera.position.set(0, 0, 0.45);
+    camera.quaternion.identity();
+    camera.fov = FOV;
+    camera.zoom = 1;
+    camera.setViewOffset(width, height, 0, -state.viewOffsetY * height, width, height);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    this.coaster.updateMatrixWorld();
+
+    const u = this.coasterUniforms;
+    u.uEnv1.value = this.envHero;
+    u.uEnv2.value = this.envHand;
+    u.uEnvBlend.value = 0;
+    u.uHeroRatio.value = 0;
+    u.uHighlight.value = 0;
+    u.uExtraBump.value = 0;
+    u.uWrapperRatio.value = 0;
+    u.uWearableBlend.value = 0;
+    u.uZoom.value = 1;
+    u.uTable.value = 0;
+    u.uGoboOpacity.value = 0;
+    u.uThermalAnimation.value = 0;
+    // It starts as a silhouette against the glow and brightens as it settles.
+    u.uDim.value = 1 - 0.75 * fit(animation, 0.5, 1.2, 1, 0);
+    u.uLocalLight.value
+      .set(0.346682, 1.00875, 0.368255)
+      .applyMatrix4(this.m0.copy(inner.matrixWorld).invert());
+
+    this.coaster.visible = true;
+    this.table.group.visible = false;
+    if (this.hand) this.hand.visible = false;
+    if (this.wrapper) this.wrapper.group.visible = false;
+    if (this.rise) this.rise.visible = false;
+    this.canvas.style.transition = "";
+    this.canvas.style.opacity = "";
+
+    this.renderer.setRenderTarget(null);
+    this.renderer.setScissorTest(false);
+    if (clear) this.renderer.clear();
+    this.renderer.setScissor(0, 0, width, height * Math.min(1, state.clip));
+    this.renderer.setScissorTest(true);
+    this.renderer.getDrawingBufferSize(this.haloUniforms.uResolution.value);
+    this.haloUniforms.uSize.value = Math.min(1, height / width);
+    this.renderer.render(this.haloScene, this.quadCamera);
+    this.renderer.clearDepth();
+    this.renderer.render(this.scene, camera);
+    this.renderer.setScissorTest(false);
+    return true;
+  }
+
+  /**
    * Sustainability: bark, title and ground.
    * @param rs viewport heights into the sustainability section
    * @returns true when it drew the frame
@@ -745,7 +866,7 @@ export class OryzoStage {
     t = fit(rs, 0.25, 2.5, t, 2);
     t = fit(rs, 3, 3.5, t, 3);
     const scene = this.sustainability;
-    if (rs < -1 || !scene.ready) {
+    if (rs < -1 || !scene.ready || this.stageShift >= this.height) {
       this.sustainabilityClock = 0;
       return false;
     }
@@ -756,7 +877,7 @@ export class OryzoStage {
     this.table.useGobo("leaves");
     this.table.animate(this.renderer, dt);
     this.renderer.getDrawingBufferSize(this.v2);
-    scene.update(t, this.width, this.height, this.v2, this.easedPointer);
+    scene.update(t, dt, this.width, this.height, this.v2, this.easedPointer, this.pointer !== null);
     this.sustainabilityInk = `#${scene.inkColor.getHexString()}`;
 
     this.canvas.style.transition = "";
@@ -769,8 +890,20 @@ export class OryzoStage {
       fit(t, 0, 1, 0, 1) * fit(t, 2.1, 2.3, 1, 0),
     );
     const glow = this.beginFrame();
+    // Once the pinned stage starts scrolling off, this scene moves up with it.
+    const shift = this.stageShift;
+    if (shift > 0) {
+      this.renderer.setViewport(0, shift, this.width, this.height);
+      this.renderer.setScissor(0, shift, this.width, this.height - shift);
+      this.renderer.setScissorTest(true);
+    }
     scene.render(this.renderer);
     this.endFrame(glow);
+    if (shift > 0) {
+      this.renderer.setViewport(0, 0, this.width, this.height);
+      this.renderer.setScissorTest(false);
+      this.renderStack(false);
+    }
     return true;
   }
 
@@ -1072,6 +1205,20 @@ export class OryzoStage {
     if (!this.cameraAnimation || !this.coasterAnimation) return;
     // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
     const rw = r - 8;
+    const bottom = this.track?.getBoundingClientRect().bottom ?? Infinity;
+    this.stageShift = Math.max(0, vh - bottom);
+    this.coasterUniforms.uDim.value = 1;
+    if (this.stageShift >= vh) {
+      // Below the pinned stage only the floating coaster is drawn.
+      if (this.renderStack(true)) {
+        this.idle = false;
+      } else if (!this.idle) {
+        this.renderer.setRenderTarget(null);
+        this.renderer.clear();
+        this.idle = true;
+      }
+      return;
+    }
     if (this.renderSustainability(r - 21.25 - 18.5, dt)) {
       this.idle = false;
       return;

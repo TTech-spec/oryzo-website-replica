@@ -111,6 +111,7 @@ export const coasterFragment = /* glsl */ `
   uniform sampler2D uTextMap;
   uniform float uTextOpacity;
   uniform mat2 uFlipRot;
+  uniform float uDim;
 
   ${rainbow}
   ${goboChunk}
@@ -268,7 +269,7 @@ export const coasterFragment = /* glsl */ `
     float thermalLevel = 0.5 * thermalLuma + 0.9 * (1.0 - vAo) * (0.1 + 0.9 * smoothstep(0.005, 0.008, vModelPosition.y));
     vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(thermalLevel, 0.5)).rgb, vec3(2.2));
     color = mix(color, thermal, thermalFade());
-    gl_FragColor = vec4(pow(aces(color), vec3(1.0 / 2.2)), 1.0);
+    gl_FragColor = vec4(pow(aces(color * uDim), vec3(1.0 / 2.2)), 1.0);
   }
 `;
 

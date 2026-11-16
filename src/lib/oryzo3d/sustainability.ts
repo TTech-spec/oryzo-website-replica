@@ -86,6 +86,56 @@ const titleFragment = /* glsl */ `
   }
 `;
 
+// Dashes that run around each letter's outline. They show where the pointer is near, and in a
+// single sweep across the word just as the bark finishes peeling.
+const outlineVertex = /* glsl */ `
+  attribute vec3 OP;
+  attribute float radius;
+  uniform vec4 uRect;
+  uniform vec2 uViewport;
+  varying float vX;
+  varying float vCurve;
+  varying float vPerimeter;
+  varying float vRadius;
+  varying vec2 vPx;
+  void main() {
+    vec2 pos = position.xy / vec2(1.0, 0.150907) + 0.5;
+    vec2 px = uRect.xy + vec2(pos.x, 1.0 - pos.y) * uRect.zw;
+    vX = px.x / uViewport.x;
+    vPx = px;
+    vCurve = position.z;
+    vPerimeter = OP.z;
+    vRadius = radius;
+    gl_Position = vec4(px.x / uViewport.x * 2.0 - 1.0, 1.0 - px.y / uViewport.y * 2.0, 0.0, 1.0);
+  }
+`;
+
+const outlineFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uPeel;
+  uniform float uPulse;
+  uniform float uTime;
+  uniform vec3 uPointer;
+  uniform vec2 uViewport;
+  varying float vX;
+  varying float vCurve;
+  varying float vPerimeter;
+  varying float vRadius;
+  varying vec2 vPx;
+  void main() {
+    // A dash travelling along the curve, at a speed independent of the letter's size.
+    float t = mod(uTime / vPerimeter * 0.2 - vCurve, 1.0);
+    float dash = smoothstep(0.0, 0.05, t) * smoothstep(0.8, 0.5, t);
+    float l = 0.5 + uPulse * 2.0;
+    float d = (1.0 - uPulse) * (1.0 + l) - vX - l;
+    float pulse = smoothstep(-l, -0.0001, d) * smoothstep(0.0, -0.0001, d) * smoothstep(0.0, 0.2, uPulse);
+    float near = smoothstep(0.24, 0.07, distance(vPx, uPointer.xy) / uViewport.y) * uPointer.z;
+    float alpha = max(pulse, near) * dash * (1.0 - vRadius);
+    vec3 color = uColor * clamp(uPeel * 2.0 - 1.0 + vX, 0.0, 1.0);
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
 const barkVertex = /* glsl */ `
   attribute float side;
   attribute float Cd;
@@ -231,6 +281,17 @@ export class SustainabilityScene {
     uColor: { value: new THREE.Color() },
     uPeel: { value: 0 },
   };
+  private outlineUniforms = {
+    uRect: this.titleUniforms.uRect,
+    uViewport: this.titleUniforms.uViewport,
+    uColor: this.titleUniforms.uColor,
+    uPeel: this.titleUniforms.uPeel,
+    uPulse: { value: 0 },
+    uTime: { value: 0 },
+    /** Pointer in CSS pixels, with z = 1 while it is over the page. */
+    uPointer: { value: new THREE.Vector3() },
+  };
+  private pulse = 0;
   private barkUniforms = {
     uTexture: { value: null as THREE.Texture | null },
     uShow: { value: 0 },
@@ -239,6 +300,7 @@ export class SustainabilityScene {
   };
   private bark?: THREE.Mesh;
   private title?: THREE.Mesh;
+  private outline?: THREE.Mesh;
 
   constructor() {
     // Straight down from a third of a metre, 50mm lens on the 2:1 gate.
@@ -272,9 +334,10 @@ export class SustainabilityScene {
 
   async load(modelPath: string, tex: (path: string) => THREE.Texture, gobo: THREE.Texture) {
     this.groundUniforms.uGobo.value = gobo;
-    const [barkData, titleData] = await Promise.all([
+    const [barkData, titleData, outlineData] = await Promise.all([
       loadBuf(`${modelPath}BARK.buf`),
       loadBuf(`${modelPath}sustainability_text.buf`),
+      loadBuf(`${modelPath}sustainability_text_outline.buf`),
     ]);
     const barkTexture = tex("sustainability/bark.webp");
     barkTexture.anisotropy = 8;
@@ -307,6 +370,23 @@ export class SustainabilityScene {
     title.renderOrder = -2;
     this.scene.add(title);
     this.title = title;
+
+    const outline = new THREE.Mesh(
+      toGeometry(outlineData),
+      new THREE.ShaderMaterial({
+        uniforms: this.outlineUniforms,
+        vertexShader: outlineVertex,
+        fragmentShader: outlineFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    outline.frustumCulled = false;
+    outline.renderOrder = -1;
+    this.scene.add(outline);
+    this.outline = outline;
     this.ready = true;
   }
 
@@ -315,16 +395,14 @@ export class SustainabilityScene {
     const bark = this.bark;
     const barkVisible = bark?.visible ?? false;
     if (bark) bark.visible = false;
-    this.ground.visible = true;
-    if (this.title) this.title.visible = true;
+    const flat = [this.ground, this.title, this.outline];
+    for (const mesh of flat) if (mesh) mesh.visible = true;
     renderer.render(this.scene, this.camera);
     if (bark && barkVisible) {
       bark.visible = true;
-      this.ground.visible = false;
-      if (this.title) this.title.visible = false;
+      for (const mesh of flat) if (mesh) mesh.visible = false;
       renderer.render(this.scene, this.camera);
-      this.ground.visible = true;
-      if (this.title) this.title.visible = true;
+      for (const mesh of flat) if (mesh) mesh.visible = true;
     }
   }
 
@@ -332,7 +410,26 @@ export class SustainabilityScene {
    * @param t scene clock: 0-1 bark fades up, 1-2 it peels away, 2-3 the ground turns cream
    * @param pointer eased pointer, -1..1
    */
-  update(t: number, width: number, height: number, buffer: THREE.Vector2, pointer: THREE.Vector2) {
+  update(
+    t: number,
+    dt: number,
+    width: number,
+    height: number,
+    buffer: THREE.Vector2,
+    pointer: THREE.Vector2,
+    pointerActive: boolean,
+  ) {
+    // One sweep of dashes across the word as the peel completes.
+    const sweeping = t > 1.7 && t < 2.1;
+    if (this.pulse > 0 || sweeping) this.pulse = Math.min(1, this.pulse + dt * 0.5);
+    if (!sweeping && this.pulse >= 1) this.pulse = 0;
+    this.outlineUniforms.uPulse.value = this.pulse;
+    this.outlineUniforms.uTime.value += dt;
+    this.outlineUniforms.uPointer.value.set(
+      (pointer.x * 0.5 + 0.5) * width,
+      (0.5 - pointer.y * 0.5) * height,
+      pointerActive ? 1 : 0,
+    );
     const peel = Math.min(1, Math.max(0, t - 1));
     const cream = Math.min(1, Math.max(0, t - 2));
     this.camera.aspect = width / height;
