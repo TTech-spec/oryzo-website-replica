@@ -565,6 +565,7 @@ export class TableScene {
       renderer.render(scene, camera);
       return;
     }
+    const output = renderer.getRenderTarget();
     const scissor = renderer.getScissorTest();
     renderer.setScissorTest(false);
     renderer.setRenderTarget(this.sceneTarget);
@@ -572,7 +573,7 @@ export class TableScene {
     renderer.clear();
     renderer.render(scene, camera);
     renderer.setClearColor(0x000000, 0);
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(output);
     renderer.setScissorTest(scissor);
     renderer.render(this.thermalScene, this.quadCamera);
   }

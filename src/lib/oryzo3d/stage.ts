@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { FrameAnimation, toGeometry } from "./anim";
+import { blendBloom, Bloom, type BloomSettings } from "./bloom";
 import { floatAttribute, loadBuf } from "./buf";
 import { DeskProps, PLANE_HEIGHT, PLANE_WIDTH } from "./deskProps";
 import { HandRig } from "./handRig";
@@ -34,6 +35,16 @@ const GALLERY_LAST = 7;
 /** How far right of centre the desk sits once the features copy takes the left of the screen. */
 const FEATURES_VIEW_OFFSET = 0.165;
 
+const flatFragment = /* glsl */ `
+  uniform sampler2D uTexture;
+  uniform float uOpacity;
+  varying vec2 vUv;
+  void main() {
+    vec4 texel = texture2D(uTexture, vUv);
+    gl_FragColor = vec4(texel.rgb, texel.a * uOpacity);
+  }
+`;
+
 const riseVertex = /* glsl */ `
   uniform vec4 uRect;
   uniform vec2 uViewport;
@@ -59,6 +70,32 @@ const riseFragment = /* glsl */ `
     gl_FragColor = vec4(vec3(1.0, 0.929, 0.843), alpha * uOpacity);
   }
 `;
+
+// Bloom looks per scene: overall haze on the bright desk, tight highlights elsewhere.
+const HERO_BLOOM: BloomSettings = {
+  amount: 2,
+  lumaStrength: 0.2,
+  selectiveStrength: 0,
+  saturation: 1.5,
+};
+const HAND_BLOOM: BloomSettings = {
+  amount: 1.4,
+  lumaStrength: 0.2,
+  selectiveStrength: 0,
+  saturation: 1,
+};
+const HIGHLIGHT_BLOOM: BloomSettings = {
+  amount: 3,
+  lumaStrength: 0,
+  selectiveStrength: 1,
+  saturation: 1,
+};
+const THERMAL_BLOOM: BloomSettings = {
+  amount: 2,
+  lumaStrength: 0,
+  selectiveStrength: 1,
+  saturation: 1.45,
+};
 
 const WEARABLE_LIGHT = new THREE.Vector3(-10, -2, 6);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -187,12 +224,11 @@ export class OryzoStage {
 
   private desk = new THREE.Group();
   private deskProps?: DeskProps;
-  private baseMaterial = new THREE.MeshBasicMaterial({
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  });
-  private shadow?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  // Flat textured layers write display colour straight out, like every other material here, so
+  // they look the same whether drawn to the screen or through the bloom buffer.
+  private baseOpacity = { value: 1 };
+  private shadowOpacity = { value: 1 };
+  private shadow?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
 
   private width = 1;
   private height = 1;
@@ -203,6 +239,19 @@ export class OryzoStage {
   private disposed = false;
   private idle = false;
   private table = new TableScene();
+  private bloom = new Bloom();
+  private bloomSettings: BloomSettings = {
+    amount: 0,
+    lumaStrength: 0,
+    selectiveStrength: 0,
+    saturation: 1,
+  };
+  private wearableBloom: BloomSettings = {
+    amount: 1,
+    lumaStrength: 0,
+    selectiveStrength: 1,
+    saturation: 1.5,
+  };
   private envHero: THREE.Texture | null = null;
   private envTable: THREE.Texture | null = null;
   private rise?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
@@ -287,10 +336,18 @@ export class OryzoStage {
     };
 
     // Desk image, coaster shadow and props (2D layer).
-    this.baseMaterial.map = tex("hero/BASE.webp", true);
+    const flat = (texture: THREE.Texture, opacity: { value: number }) =>
+      new THREE.ShaderMaterial({
+        uniforms: { uTexture: { value: texture }, uOpacity: opacity },
+        vertexShader: propVertex,
+        fragmentShader: flatFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      });
     const base = new THREE.Mesh(
       new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT),
-      this.baseMaterial,
+      flat(tex("hero/BASE.webp"), this.baseOpacity),
     );
     base.renderOrder = 0;
     this.desk.add(base);
@@ -308,12 +365,7 @@ export class OryzoStage {
     }
     this.shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        map: new THREE.CanvasTexture(shadowCanvas),
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-      }),
+      flat(new THREE.CanvasTexture(shadowCanvas), this.shadowOpacity),
     );
     this.shadow.renderOrder = 1;
     this.desk.add(this.shadow);
@@ -635,6 +687,7 @@ export class OryzoStage {
       }
     }
     return {
+      clock: t,
       zoom,
       wrapperLight: fit(t, 0.3, 1, 0, 1) * fit(t, 1, 2, 1, 0),
       blend: fit(t, 2, 2.6, 0, 1),
@@ -761,7 +814,9 @@ export class OryzoStage {
     }
 
     this.renderer.setScissorTest(false);
-    this.renderer.clear();
+    // Only the heat camera glows on this set (the hot cup blooms).
+    blendBloom(this.resetBloom(), THERMAL_BLOOM, table.thermalRatio);
+    const glow = this.beginFrame();
     if (t < 4) {
       // Draw only inside the frame; from 3 the window grows until it covers the screen.
       const cx = visibleLeft + visibleWidth / 2 + FEATURES_VIEW_OFFSET * width * open;
@@ -791,7 +846,31 @@ export class OryzoStage {
     this.renderer.render(this.scene, camera);
     table.surfaces.visible = true;
     this.renderer.setScissorTest(false);
+    this.endFrame(glow);
     return true;
+  }
+
+  /** Start drawing a frame, through the bloom buffer when any glow is wanted. */
+  private beginFrame() {
+    const glow = this.bloomSettings.amount > 0.01;
+    if (glow) this.bloom.resize(this.renderer);
+    this.renderer.setRenderTarget(glow ? this.bloom.target : null);
+    this.renderer.clear();
+    return glow;
+  }
+
+  private endFrame(glow: boolean) {
+    if (glow) this.bloom.render(this.renderer, this.bloomSettings);
+    this.renderer.setRenderTarget(null);
+  }
+
+  private resetBloom() {
+    const b = this.bloomSettings;
+    b.amount = 0;
+    b.lumaStrength = 0;
+    b.selectiveStrength = 0;
+    b.saturation = 1;
+    return b;
   }
 
   private tick = (time: number) => {
@@ -821,6 +900,7 @@ export class OryzoStage {
     }
     if (rw > 5.3) {
       if (!this.idle) {
+        this.renderer.setRenderTarget(null);
         this.renderer.clear();
         this.idle = true;
       }
@@ -873,7 +953,7 @@ export class OryzoStage {
     this.desk.visible = heroActive > 0;
     if (this.desk.visible) {
       const s = this.desk.scale.x;
-      this.baseMaterial.opacity = heroActive;
+      this.baseOpacity.value = heroActive;
       const pointer = this.pointer
         ? this.deskPointer.set(
             (this.pointer.x * this.width) / 2 / s,
@@ -889,14 +969,23 @@ export class OryzoStage {
           0,
         );
         this.shadow.scale.setScalar(620);
-        this.shadow.material.opacity = heroActive * 0.9;
+        this.shadowOpacity.value = heroActive * 0.9;
       }
     }
 
-    this.renderer.clear();
+    const bloom = this.resetBloom();
+    blendBloom(bloom, HERO_BLOOM, heroActive);
+    blendBloom(bloom, HAND_BLOOM, fit(animationRatio, 0, 0.1, 0, 1));
+    blendBloom(bloom, HIGHLIGHT_BLOOM, highlight);
+    // The wrapper tear gets a brief flare.
+    const wt = wearable.clock;
+    this.wearableBloom.amount = 1 + fit(wt, 1.5, 1.7, 0, 1) * fit(wt, 1.8, 2.5, 1, 0);
+    blendBloom(bloom, this.wearableBloom, fit(wt, 0, 1, 0, 1));
+    const glow = this.beginFrame();
     this.renderer.render(this.scene2D, this.camera2D);
     this.renderer.clearDepth();
     this.renderer.render(this.scene, this.camera);
+    this.endFrame(glow);
   };
 
   dispose() {
@@ -905,6 +994,7 @@ export class OryzoStage {
     window.removeEventListener("resize", this.resize);
     window.removeEventListener("pointermove", this.onPointerMove);
     document.removeEventListener("pointerleave", this.onPointerLeave);
+    this.bloom.dispose();
     this.renderer.dispose();
   }
 }

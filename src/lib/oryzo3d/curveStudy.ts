@@ -329,6 +329,10 @@ export class CurveStudy {
       ctx.translate(cx + (x - dx * near * 0.1) * unit, cy - (y - dy * near * 0.1) * unit);
       ctx.rotate(-near * dx * 0.1);
       ctx.globalAlpha = Math.min(1, opacity * 2);
+      // Sketches near the front of the cycle are in focus; the rest soften with distance.
+      const blur = fit(Math.abs(cycle - span / 2), span / 2, (span / 2) * 0.25, 1, 1 - present);
+      const blurPx = ((blur * 15) / 512) * halfWidth * 2;
+      ctx.filter = blurPx > 0.3 ? `blur(${blurPx.toFixed(2)}px)` : "none";
       ctx.drawImage(sketch, -halfWidth, -halfHeight, halfWidth * 2, halfHeight * 2);
       ctx.restore();
     }

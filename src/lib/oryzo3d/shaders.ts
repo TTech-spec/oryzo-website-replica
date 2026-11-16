@@ -213,11 +213,12 @@ export const coasterFragment = /* glsl */ `
     vec3 wearableColor = 4.0 * pow(texel, vec3(3.0 - 0.5 * vAo)) * (0.05 + 0.95 * smoothstep(0.0, 0.3, shadow * shadow));
     color = mix(color, wearableColor, uWearableBlend);
 
-    vec3 display = pow(aces(color), vec3(1.0 / 2.2));
-    // Cork insulates: it reads cool on the heat camera.
-    float luma = dot(display, vec3(0.299, 0.587, 0.114));
-    vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(0.18 + 0.2 * luma, 0.5)).rgb, vec3(2.2));
-    gl_FragColor = vec4(mix(display, thermal, thermalFade()), 1.0);
+    // Heat camera: cork reads cool, warming only where the rim is thin and exposed.
+    float thermalLuma = dot(pow(texel, vec3(1.8)), vec3(0.2126, 0.7152, 0.0722));
+    float thermalLevel = 0.5 * thermalLuma + 0.9 * (1.0 - vAo) * (0.1 + 0.9 * smoothstep(0.005, 0.008, vModelPosition.y));
+    vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(thermalLevel, 0.5)).rgb, vec3(2.2));
+    color = mix(color, thermal, thermalFade());
+    gl_FragColor = vec4(pow(aces(color), vec3(1.0 / 2.2)), 1.0);
   }
 `;
 

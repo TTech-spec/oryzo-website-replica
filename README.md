@@ -13,6 +13,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Hero UI**: wordmark, intro copy, studio card, and a film button that opens the Vimeo player.
 - **Desk scene**: the magazine cover is a live 3D window onto the desk set. Desk, wall and pegboard are baked-texture meshes with ray-marched contact shadows; the props (keyboard, controller, pegboard clutter) are Gaussian splats; the coffee cup drops onto the coaster. The frame then opens to full screen and the baked features camera move plays with the Elevate, Thermodynamic stability and More Circular copy.
 - **Desk effects**: a heat-camera pass for Thermodynamic stability (diagonal wipe, glowing cup, temperature scale), swaying window light, a mirror image of the props in the desk varnish, and steam from the cup.
+- **Bloom**: the stage renders through an off-screen buffer whose bright parts are blurred at five scales and added back, with a different look per scene (haze on the desk, tight glow on the headline, the hot cup on the heat camera).
 - **Roundness study**: for More Circular, a blueprint canvas draws the coaster as bezier arcs with control handles while design sketches drift around it; the circle then grows and splits into the O's of the ORYZO wordmark.
 - **Remaining sections** (flip encryption, grip, sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
@@ -35,6 +36,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
 | `src/components/oryzo/FeaturesLayer.tsx` | Features copy shown over the desk scene |
 | `src/lib/oryzo3d/table.ts` | Desk set: surfaces, coffee cup, baked features animation |
+| `src/lib/oryzo3d/bloom.ts` | Bloom post-process (high-pass, blur pyramid, composite) |
 | `src/lib/oryzo3d/curveStudy.ts` | 2D blueprint canvas for the roundness study |
 | `src/lib/oryzo3d/splats.ts` | Gaussian splat loader and renderer for `.sog` files |
 | `src/lib/oryzo3d/anim.ts` | Baked transform tracks and geometry helpers |
