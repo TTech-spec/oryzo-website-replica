@@ -16,6 +16,7 @@ const FOV = (2 * Math.atan((VIEW_HEIGHT * 41.4) / VIEW_WIDTH / 2 / 50) * 180) / 
 const HAND_FRAME_START = 71;
 
 const HERO_LIGHT = new THREE.Vector3(0.346682, 1.00875, -0.368255);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 const HAND_LIGHT = new THREE.Vector3(0.0237565, 0.77265, 0.435661);
 
 export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -141,6 +142,7 @@ export class OryzoStage {
   private raf = 0;
   private lastTime = 0;
   private disposed = false;
+  private idle = false;
   /** Pointer in normalised stage coordinates (-1..1, y up); null while outside the stage. */
   private pointer: THREE.Vector2 | null = null;
   private deskPointer = new THREE.Vector2();
@@ -401,12 +403,31 @@ export class OryzoStage {
     this.onFrame?.({ r, heroActive });
 
     // Past the pinned range the stage has scrolled away entirely.
-    if (r > 10.2 || !this.cameraAnimation || !this.coasterAnimation) return;
+    if (!this.cameraAnimation || !this.coasterAnimation) return;
+    // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
+    const rw = r - 8;
+    if (rw > 4.4) {
+      if (!this.idle) {
+        this.renderer.clear();
+        this.idle = true;
+      }
+      return;
+    }
+    this.idle = false;
 
     const animationRatio = fit(r, 0, 5.5, 0, 1);
     const frame = animationRatio * (this.cameraAnimation.frameCount - 1);
     this.cameraAnimation.apply(this.camera, frame);
     this.coasterAnimation.apply(this.coaster, frame);
+    // In the wearable intro the coaster turns over once inside its frame, then settles back
+    // as the photo fades in over it.
+    if (rw > 0) {
+      const spin = fit(rw, 1, 2.8, 0, 1, (t) =>
+        t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2,
+      );
+      this.coaster.quaternion.multiply(this.q0.setFromAxisAngle(X_AXIS, spin * Math.PI * 2));
+    }
+    this.coaster.scale.setScalar(fit(rw, 3.2, 4.3, 1, 0.55));
     this.camera.updateMatrixWorld();
     this.coaster.updateMatrixWorld();
 

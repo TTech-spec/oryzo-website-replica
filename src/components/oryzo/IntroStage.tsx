@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
+import { WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
 import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
+
+const cubicInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const sineInOut = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
+const backIn = (t: number) => 2.70158 * t * t * t - 1.70158 * t * t;
 
 const TITLE = "Powered by AI";
 const PRE_TITLE = ["isn’t just", "a coaster."];
@@ -50,6 +55,69 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
     let cancelled = false;
     let lastHero = -1;
 
+    const items = Array.from(root.querySelectorAll<HTMLElement>(".oz-wear-item"));
+    const inners = items.map((item) => item.querySelector<HTMLElement>(".oz-wear-item-inner"));
+    const videos = items.map((item) => item.querySelector("video"));
+    const last = WEARABLE_ITEMS.length - 1;
+
+    // The wearable gallery runs on its own clock: rw is viewport heights since it scrolled into view.
+    const applyWearable = (rw: number) => {
+      const set = (name: string, value: number) => root.style.setProperty(name, value.toFixed(4));
+      const hide = fit(rw, 12.25, 13.25, 0, 1);
+      const active = rw > 0 && hide < 1;
+      root.dataset["wear"] = active ? "on" : "off";
+      if (!active) {
+        for (const video of videos) if (video && !video.paused) video.pause();
+        return;
+      }
+      set("--wear-hide", hide);
+      set("--wear-label", rw - 0.5);
+      set("--wear-big-x", fit(rw, 1, 2, 100, 0));
+      set("--wear-big-on", rw >= 1 ? 1 : 0);
+      set("--wear-shrink", fit(rw, 3.25, 4.75, 0, 1, cubicInOut));
+      set("--frame-show", fit(rw, 0, 1, 0, 1));
+      set("--frame-scale", fit(rw, 2.2, 3.4, 0, 1, cubicInOut));
+      set("--intro-show", fit(rw, 3.4, 4.3, 0, 1));
+      set("--thumbs", fit(rw, 4.6, 5.4, 0, 1) * fit(rw, 10.6, 11, 1, 0));
+
+      // The gallery advances in steps: each image settles before the next one slides in.
+      const raw = ((rw - 5.5) / 5.25) * last;
+      const whole = Math.floor(raw);
+      const index = Math.min(
+        last,
+        Math.max(0, whole + fit(raw - whole, 0.1, 0.9, 0, 1, sineInOut)),
+      );
+      set("--gallery-index", index);
+      items.forEach((item, i) => {
+        const isLast = i === last;
+        const show = fit(index, i - 1, i, 0, 1);
+        const gone = isLast ? 0 : fit(index, i, i + 1, 0, 1);
+        const visible = show > 0 && gone < 1;
+        item.style.visibility = visible ? "visible" : "hidden";
+        if (visible) {
+          const o = show - 1 + gone;
+          const inner = inners[i];
+          if (inner)
+            inner.style.transform = `rotate(${o * -10}deg) scale(${1 + Math.abs(o) * 0.2})`;
+        }
+        const settled = visible && Math.abs(index - i) < 0.5;
+        if (item.dataset["active"] !== String(settled)) item.dataset["active"] = String(settled);
+        const video = videos[i];
+        if (video) {
+          if (visible && video.paused) void video.play().catch(() => {});
+          else if (!visible && !video.paused) video.pause();
+        }
+      });
+
+      // Magazine cover: copy flies off, then the frame opens up to fill the screen.
+      const magHide = fit(raw - last, 0, 3.2, 0, 1);
+      const a = fit(magHide, 0.5, 1, 0, 1);
+      set("--mag-a", a);
+      set("--mag-fly", cubicIn(a));
+      set("--mag-num", fit(fit(a, 0, 0.75, 0, 1), 0, 1, 1, 0.1, backIn));
+      set("--mag-zoom", fit(rw, 10.9, 13.1, 0, 1, cubicInOut));
+    };
+
     const applyFrame = ({ r, heroActive }: StageFrame) => {
       const set = (name: string, value: number) => root.style.setProperty(name, value.toFixed(4));
       set("--hero", heroActive);
@@ -71,6 +139,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       set("--glow", fit(r, 5.5, 6, 0, 1) * fit(r, 7.5, 8, 1, 0));
       set("--warm", fit(r, 3.5, 5.5, 0, 1));
       root.dataset["phase"] = heroActive > 0 ? "hero" : "ai";
+      applyWearable(r - 8);
     };
 
     void import("@/lib/oryzo3d/stage").then(({ OryzoStage }) => {
@@ -187,6 +256,8 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
             </span>
           </div>
         </div>
+
+        <WearableLayer />
       </div>
     </section>
   );

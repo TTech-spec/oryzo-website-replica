@@ -9,8 +9,9 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Scroll-driven 3D intro**: the desk hero, the "Isn't just a coaster" flip and the "Powered by AI" hand, rendered with Three.js. The camera, coaster and hand follow the original site's baked animation tracks, so the motion matches frame for frame as you scroll.
 - **Lighting**: the coaster uses a port of the original shader, with environment-map lighting that cross-fades between the desk and the dark set, cork bump mapping and a ray-marched soft self-shadow.
 - **Interaction**: desk props fly in on load and scatter when the pointer brushes them; the hand's fingers curl when you hover them during the highlight.
+- **Wearable gallery**: "So portable, it's wearable" — the coaster turns over in its frame, the headline slides in and shrinks into the title, then a framed gallery steps sideways through eight scenes (two videos, the bikini prompt, the stunt warning) and ends on the RISE magazine cover, which opens up to fill the screen.
 - **Hero UI**: wordmark, intro copy, studio card, and a film button that opens the Vimeo player.
-- **Remaining sections** (features, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Remaining sections** (the 3D desk scene the magazine zooms into, features, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
 ## Tech stack
 
@@ -25,6 +26,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | --- | --- |
 | `src/components/OryzoPage.tsx` | The single-page campaign, section by section |
 | `src/components/oryzo/IntroStage.tsx` | Pinned intro: canvas plus scroll-animated copy |
+| `src/components/oryzo/WearableLayer.tsx` | Wearable gallery and magazine cover markup |
 | `src/lib/oryzo3d/stage.ts` | Three.js scene: desk layer, coaster, hand, lighting, scroll timeline |
 | `src/lib/oryzo3d/shaders.ts` | GLSL for the coaster, hand and desk props |
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
@@ -56,4 +58,9 @@ Scroll position is measured in viewport heights. The first ten screens are pinne
 1. `0 – 0.5`: the desk fades out and the scene goes dark.
 2. `0 – 5.5`: the camera and coaster play through 116 baked frames (lift, flip, settle).
 3. From frame 71 the hand rises under the coaster, skinned on the GPU from 36 baked bones.
-4. `5.5 – 8`: the "Powered by AI" highlight glow, then everything fades for the next section.
+4. `5.5 – 8`: the "Powered by AI" highlight glow.
+5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8.
+
+## Deploying to Vercel
+
+Import the repository at [vercel.com/new](https://vercel.com/new) and deploy. No settings are needed: the build detects Vercel and outputs for it automatically.
