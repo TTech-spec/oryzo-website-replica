@@ -20,6 +20,7 @@ export function GripLayer() {
         />
       </div>
       <canvas className="oz-grip-bears" aria-hidden="true" />
+      <canvas className="oz-grip-bear3d" aria-hidden="true" />
       <div className="oz-grip-header">
         <p className="oz-grip-tagline">Precision Grip, Zero Drama</p>
         <h2 className="oz-grip-title">

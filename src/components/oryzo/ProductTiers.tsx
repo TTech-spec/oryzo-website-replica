@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { FlipText } from "@/components/oryzo/FlipText";
 
 import { Chars } from "@/components/oryzo/Chars";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { productSharedSpecs, productTiers } from "@/lib/oryzo";
+import { ProductSketches } from "@/lib/oryzo3d/productSketches";
 import { stackState } from "@/lib/oryzo3d/stackState";
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -71,6 +73,8 @@ export function ProductTiers() {
       extraRows.map((row) => row.querySelectorAll<HTMLElement>(":scope > div")[tier]),
     );
     const active = [0, 0, 0];
+    const sketchCanvas = q<HTMLCanvasElement>(".oz-product-sketches");
+    const sketches = sketchCanvas ? new ProductSketches(sketchCanvas, "/oryzo/textures/") : null;
     let frame = 0;
     let last = performance.now();
 
@@ -85,7 +89,10 @@ export function ProductTiers() {
       const rect = section.getBoundingClientRect();
       const r = (vh - rect.top) / vh;
       stackState.option = optionRef.current;
-      if (r < -2) return;
+      if (r < -2) {
+        sketches?.update(dt, 0, 0, 0);
+        return;
+      }
 
       const testimonies = document.getElementById("testimonies")?.getBoundingClientRect();
       const detailsRect = details.getBoundingClientRect();
@@ -121,6 +128,7 @@ export function ProductTiers() {
       stackState.animation = animation;
       stackState.viewOffsetY = offsetY;
       if (animation >= 4) stackState.active = false;
+      sketches?.update(dt, animation, offsetY, linger);
 
       const shown = r > 0 && animation < 4;
       hero.style.visibility = shown ? "visible" : "hidden";
@@ -192,11 +200,15 @@ export function ProductTiers() {
       }
     };
     frame = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      sketches?.dispose();
+    };
   }, []);
 
   return (
     <div id="product" className="section" ref={ref}>
+      <canvas className="oz-product-sketches" aria-hidden="true" />
       <div className="section__inner o-container">
         <div id="product-hero">
           <div id="product-hero-inner">
@@ -211,11 +223,11 @@ export function ProductTiers() {
                 <button
                   type="button"
                   key={tier.name}
-                  className={`product-hero-option-item btn is-large is-dark${option === i ? " is-active" : ""}`}
+                  className={`oz-flip-host product-hero-option-item btn is-large is-dark${option === i ? " is-active" : ""}`}
                   aria-pressed={option === i}
                   onClick={() => setOption(i)}
                 >
-                  {tier.name}
+                  <FlipText text={tier.name} />
                 </button>
               ))}
             </div>

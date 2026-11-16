@@ -1,11 +1,52 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { FlipText } from "@/components/oryzo/FlipText";
 
 import { ARROW_ICON, HEART_ICON } from "@/components/oryzo/tailIcons";
+import { CoffeeBeans } from "@/lib/oryzo3d/coffeeBeans";
 
 /** Closing section: the reveal that the product is fictional, plus contact and social links. */
 export function SiteFooter() {
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const beansRef = useRef<HTMLCanvasElement>(null);
+
+  // The coffee-bean stream runs only while the footer is on screen.
+  useEffect(() => {
+    const canvas = beansRef.current;
+    if (!canvas) return;
+    let beans: CoffeeBeans | null = null;
+    try {
+      beans = new CoffeeBeans(canvas, "/oryzo/");
+    } catch {
+      return;
+    }
+    const scene = beans;
+    let visible = false;
+    let frame = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      const dt = (now - last) / 1000;
+      last = now;
+      if (visible) scene.update(dt);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? false;
+    });
+    observer.observe(canvas);
+    const onMove = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      scene.setPointer(event.clientX - rect.left, event.clientY - rect.top);
+    };
+    window.addEventListener("pointermove", onMove);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("pointermove", onMove);
+      scene.dispose();
+    };
+  }, []);
 
   const copyUrl = async () => {
     try {
@@ -30,6 +71,7 @@ export function SiteFooter() {
 
   return (
     <div id="footer" className="section">
+      <canvas ref={beansRef} className="oz-footer-beans" aria-hidden="true" />
       <div className="section__inner o-container o-grid">
         <div id="footer-top">
           <div id="footer-lusion-logo" />
@@ -45,7 +87,7 @@ export function SiteFooter() {
           target="_blank"
           rel="noreferrer"
         >
-          lusion.co
+          <FlipText text="lusion.co" />
         </a>
         <div id="footer-love" className="sub2">
           <div>
@@ -63,8 +105,12 @@ export function SiteFooter() {
             <span>Share with friends</span>
             <span> If you like it</span>
           </div>
-          <button type="button" className={copied ? "copied" : undefined} onClick={copyUrl}>
-            Copy URL
+          <button
+            type="button"
+            className={copied ? "copied oz-flip-host" : "oz-flip-host"}
+            onClick={copyUrl}
+          >
+            <FlipText text="Copy URL" />
           </button>
         </div>
         <div id="footer-email" role="region" aria-labelledby="footer-newsletter-label">
@@ -110,20 +156,20 @@ export function SiteFooter() {
         <div id="footer-contact-wrapper">
           <div id="contact" className="footer-item">
             <div className="footer-item-caption sub2">New Business:</div>
-            <a className="footer-item-link" href="mailto:business@lusion.co">
-              business@lusion.co
+            <a className="footer-item-link oz-flip-host" href="mailto:business@lusion.co">
+              <FlipText text="business@lusion.co" />
             </a>
           </div>
           <div className="footer-item">
             <div className="footer-item-caption sub2">General Enquires:</div>
-            <a className="footer-item-link" href="mailto:hello@lusion.co">
-              hello@lusion.co
+            <a className="footer-item-link oz-flip-host" href="mailto:hello@lusion.co">
+              <FlipText text="hello@lusion.co" />
             </a>
           </div>
         </div>
         <div id="footer-social-wrapper">
           <a
-            className="footer-item-link"
+            className="footer-item-link oz-flip-host"
             href="https://x.com/lusionltd"
             target="_blank"
             rel="noreferrer"
@@ -131,20 +177,20 @@ export function SiteFooter() {
             X
           </a>
           <a
-            className="footer-item-link"
+            className="footer-item-link oz-flip-host"
             href="https://www.instagram.com/lusionltd"
             target="_blank"
             rel="noreferrer"
           >
-            Instagram
+            <FlipText text="Instagram" />
           </a>
           <a
-            className="footer-item-link"
+            className="footer-item-link oz-flip-host"
             href="https://www.linkedin.com/company/lusionltd"
             target="_blank"
             rel="noreferrer"
           >
-            Linkedin
+            <FlipText text="Linkedin" />
           </a>
         </div>
         <div id="footer-caption" className="sub2">

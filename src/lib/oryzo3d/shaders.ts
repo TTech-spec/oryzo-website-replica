@@ -112,6 +112,10 @@ export const coasterFragment = /* glsl */ `
   uniform float uTextOpacity;
   uniform mat2 uFlipRot;
   uniform float uDim;
+  // Photograph projected onto the coaster once it settles under the product title.
+  uniform sampler2D uImgTexture;
+  uniform mat4 uImgMVP;
+  uniform float uImgOpacity;
 
   ${rainbow}
   ${goboChunk}
@@ -269,7 +273,13 @@ export const coasterFragment = /* glsl */ `
     float thermalLevel = 0.5 * thermalLuma + 0.9 * (1.0 - vAo) * (0.1 + 0.9 * smoothstep(0.005, 0.008, vModelPosition.y));
     vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(thermalLevel, 0.5)).rgb, vec3(2.2));
     color = mix(color, thermal, thermalFade());
-    gl_FragColor = vec4(pow(aces(color * uDim), vec3(1.0 / 2.2)), 1.0);
+    vec3 graded = aces(color * uDim);
+    if (uImgOpacity > 0.0) {
+      vec4 imgPos = uImgMVP * vec4(vModelPosition, 1.0);
+      vec3 photo = pow(texture2D(uImgTexture, imgPos.xy / imgPos.w).rgb, vec3(2.2));
+      graded = mix(graded, photo, uImgOpacity);
+    }
+    gl_FragColor = vec4(pow(graded, vec3(1.0 / 2.2)), 1.0);
   }
 `;
 

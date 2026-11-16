@@ -73,6 +73,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+const ADOBE_FONTS_KIT = (import.meta.env["VITE_ADOBE_FONTS_KIT"] as string | undefined)?.trim();
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     // Replace these placeholders with the app's name and description when first building the app.
@@ -82,9 +84,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ORYZO — Made for mugs. Built for tables." },
-      { name: "description", content: "The world's most unnecessarily sophisticated cork coaster. Designed by Lusion." },
+      {
+        name: "description",
+        content: "The world's most unnecessarily sophisticated cork coaster. Designed by Lusion.",
+      },
       { property: "og:title", content: "ORYZO — Made for mugs. Built for tables." },
-      { property: "og:description", content: "The world's most unnecessarily sophisticated cork coaster. Designed by Lusion." },
+      {
+        property: "og:description",
+        content: "The world's most unnecessarily sophisticated cork coaster. Designed by Lusion.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -100,6 +108,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Literata:opsz,wght@7..72,200..500&display=swap",
       },
+      // Halyard Display (the original's typeface) is licensed through Adobe Fonts. Set
+      // VITE_ADOBE_FONTS_KIT to your own kit id to use it; otherwise Hanken Grotesk stands in.
+      ...(ADOBE_FONTS_KIT
+        ? [{ rel: "stylesheet", href: `https://use.typekit.net/${ADOBE_FONTS_KIT}.css` }]
+        : []),
     ],
   }),
   shellComponent: RootShell,

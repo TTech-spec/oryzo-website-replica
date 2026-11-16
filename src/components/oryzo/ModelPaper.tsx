@@ -1,4 +1,5 @@
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
+import { FlipText } from "@/components/oryzo/FlipText";
 import {
   CODE_ICON,
   MODEL_ICON,
@@ -20,11 +21,11 @@ coaster. Code: coming soon.
 
 function PaperLink({ href, icon, label }: { href: string; icon: Icon; label: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="btn is-dark">
+    <a href={href} target="_blank" rel="noreferrer" className="btn is-dark oz-flip-host">
       <svg viewBox={icon.viewBox} aria-hidden="true">
         <path d={icon.d} />
       </svg>
-      <span>{label}</span>
+      <FlipText text={label} />
     </a>
   );
 }

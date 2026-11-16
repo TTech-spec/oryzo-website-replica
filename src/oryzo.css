@@ -8,7 +8,7 @@
   --oz-pad-y: 1.67vw;
   background: var(--oz-dark);
   color: var(--oz-cream);
-  font-family: "Hanken Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-family: "halyard-display-variable", "halyard-display", "Hanken Grotesk", "Helvetica Neue", Arial, sans-serif;
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
 }
@@ -1454,6 +1454,20 @@
   mask-composite: intersect;
 }
 
+.oz-grip-bear3d {
+  position: fixed;
+  inset: 0;
+  /* Above the microscope window it climbs out of. */
+  z-index: 3;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.oz-stage-track:not([data-grip="on"]) .oz-grip-bear3d {
+  visibility: hidden;
+}
+
 .oz-grip-bears {
   position: absolute;
   inset: 0;
@@ -2122,5 +2136,178 @@
 
   .oz-nav {
     display: none;
+  }
+}
+
+/* ---------- Letter flip on hover ---------- */
+
+.oz-flip {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.oz-flip-char {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.oz-flip-char > span {
+  position: relative;
+  display: inline-block;
+  transition: transform calc(var(--flip-d) * 0.6) cubic-bezier(0.34, 1.56, 0.64, 1)
+    calc(var(--flip-d) * 0.4 * var(--n));
+}
+
+.oz-flip-copy {
+  position: absolute;
+  top: 100%;
+  left: 0;
+}
+
+@media (hover: hover) {
+  .oz-flip-host:hover .oz-flip-char > span,
+  .oz-flip:hover .oz-flip-char > span {
+    transform: translate3d(0, -100%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oz-flip-char > span {
+    transition: none;
+  }
+}
+
+/* ---------- Phone layout for sustainability copy, fact cards and testimonials ---------- */
+
+@media (max-width: 767.98px) {
+  .oz-sus-tagline {
+    top: calc(5vh + 4.3vw * 4);
+    font-size: 3.2vw;
+  }
+
+  .oz-sus-pre {
+    margin-bottom: 0.4em;
+    font-size: 3.7vw;
+  }
+
+  .oz-sus-desc {
+    top: 80vh;
+    padding: 0 8vw;
+    font-size: 4.27vw;
+    line-height: 1.5;
+  }
+
+  .oz-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 4vw;
+  }
+
+  .oz-stat {
+    --pad: 5.3vw;
+    height: 120vw;
+  }
+
+  .oz-stat h3 {
+    font-size: 7.6vw;
+  }
+
+  .oz-stat h4 {
+    font-size: 6.4vw;
+  }
+
+  .oz-stat h4 br {
+    display: none;
+  }
+
+  .oz-stat p,
+  .oz-stat:not(.is-feature) p {
+    padding-right: var(--pad);
+    font-size: 4.27vw;
+    line-height: 1.5;
+  }
+
+  .oz-stat-num {
+    top: 40%;
+    font-size: 72vw;
+  }
+
+  .oryzo-page > section.oz-tm.oz-tm {
+    --unit: calc(var(--inner) / 343);
+    --col: calc(var(--inner) / 4);
+  }
+
+  .oryzo-page > section.oz-tm .oz-tm-title {
+    top: calc(4.3vw * 8 + 12vw);
+    width: calc(var(--col) * 3);
+    font-size: calc(38 * var(--unit));
+  }
+
+  .oryzo-page > section.oz-tm .oz-tm-desc {
+    left: auto;
+    right: 0;
+    top: 80%;
+    width: calc(var(--col) * 3);
+    font-size: calc(18 * var(--unit));
+    text-align: right;
+  }
+
+  .oz-tm-header {
+    font-size: calc(12 * var(--unit));
+  }
+
+  .oz-tm-header-center {
+    display: none;
+  }
+
+  .oz-tm-rating,
+  .oz-tm-rating svg {
+    font-size: calc(12 * var(--unit));
+  }
+
+  .oz-tm-rating svg {
+    width: 20vw;
+  }
+
+  .oz-tm-item {
+    position: relative;
+    display: block;
+    padding: 1.5em 0;
+  }
+
+  .oz-tm-content {
+    width: 100%;
+  }
+
+  .oz-tm-content > .oz-tm-rating {
+    justify-content: space-between;
+  }
+
+  .oryzo-page > section.oz-tm .oz-tm-quote {
+    width: 100%;
+    margin-bottom: 2em;
+    padding-left: var(--col);
+    font-size: calc(28 * var(--unit));
+  }
+
+  .oz-tm-author {
+    position: relative;
+    bottom: auto;
+    display: flex;
+    justify-content: space-between;
+    padding-left: var(--col);
+    font-size: calc(12 * var(--unit));
+  }
+
+  /* A small round thumbnail beside the quote. */
+  .oz-tm-image {
+    position: absolute;
+    left: 0;
+    top: calc(1.5em + var(--col) * 0.6);
+    width: calc(var(--col) * 0.7);
+    border-radius: 50%;
+    aspect-ratio: 1;
+    transform: none;
   }
 }

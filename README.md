@@ -22,7 +22,13 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Social wall**: nine posters wipe open, then travel sideways as you scroll, each picture drifting inside its frame.
 - **Product tiers**: "Choose you own ORYZO". The floating coaster stops tumbling and lies down under the wordmark while the camera lifts; the three tier buttons pop in, and choosing Pro or Pro Max stacks a second and third coaster beneath it. A comparison table follows.
 - **ORYZO-1 paper** and **footer**: the open-weight model write-up with its BibTeX block, then the closing reveal, contact and social links. "Copy URL" works; the newsletter form only validates, because this practice build has no mailing list behind it.
-- **Not built**: the footer's 3D coffee-bean scene, the red sketches that float around the product coaster, the big 3D water bear, and the original's hover "flip" effect on buttons.
+- **Footer coffee beans**: a stream of 3D coffee beans spirals diagonally behind the footer. The pointer is a small light that pushes beans aside; beans away from it fade into the dark.
+- **Product extras**: orange design sketches fan out around the product coaster and lean towards the pointer, and the settled coaster blends into the original's product photograph.
+- **Big water bear**: drag the microscope back and forth about ten times; the small water bears wake and a 3D water bear climbs out of the window, turning towards the pointer.
+- **Hover flip**: button and link text rolls up letter by letter on hover.
+- **Phone layout**: every section has a phone layout (checked at 390px wide).
+- **Typeface**: the original uses Halyard Display, which is licensed through Adobe Fonts. To use it, create a kit with Halyard Display at fonts.adobe.com, allow your domain, and set `VITE_ADOBE_FONTS_KIT` to the kit id (in Vercel: Project Settings, Environment Variables). Without it, Hanken Grotesk stands in.
+- **Not built**: the original's bone-rigged leg wiggle on the big water bear (it moves as one piece here), the footer beans' soft shadows, and a real newsletter signup (the form only checks the address).
 
 ## Tech stack
 
@@ -49,6 +55,8 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/components/oryzo/SocialWall.tsx` | Horizontally scrolling posters |
 | `src/components/oryzo/ProductTiers.tsx` | Tier chooser, comparison table and the coaster's settle and stack control |
 | `src/components/oryzo/ModelPaper.tsx`, `SiteFooter.tsx` | ORYZO-1 write-up and footer |
+| `src/lib/oryzo3d/coffeeBeans.ts`, `productSketches.ts`, `waterBear3D.ts` | Footer beans, product sketches and the big water bear |
+| `src/components/oryzo/FlipText.tsx` | Letter flip on hover |
 | `src/oryzo-tail.css` | Grid, type scale and layout for the sections below the testimonials |
 | `src/components/oryzo/Testimonials.tsx` | Review table and the scroll control for the floating coaster |
 | `src/components/oryzo/Chars.tsx` | Splits text into letters for letter-by-letter reveals |

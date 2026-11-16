@@ -10,7 +10,7 @@ const LOGO_REF_HEIGHT = 388;
 const ORANGE = "#FF8539";
 
 // Six sketches packed three to a sheet, one per colour channel.
-const SKETCHES = [
+export const SKETCHES = [
   { scale: 0.75, aspect: 1685 / 1035 },
   { scale: 1, aspect: 1239 / 1281 },
   { scale: 1, aspect: 1780 / 1473 },
@@ -46,6 +46,47 @@ const expoInOut = (t: number) =>
 const loop = (v: number, min: number, max: number) =>
   min + ((((v - min) % (max - min)) + (max - min)) % (max - min));
 
+/**
+ * Load the six design sketches. Each sheet packs three drawings, one per colour channel; each is
+ * turned into an orange line drawing using its channel as alpha.
+ */
+export function loadSketches(
+  texturePath: string,
+  onSketch: (index: number, sketch: HTMLCanvasElement) => void,
+) {
+  const load = (url: string, first: number) => {
+    const image = new Image();
+    image.onload = () => {
+      const source = document.createElement("canvas");
+      source.width = image.width;
+      source.height = image.height;
+      const sctx = source.getContext("2d", { willReadFrequently: true });
+      if (!sctx) return;
+      sctx.drawImage(image, 0, 0);
+      const pixels = sctx.getImageData(0, 0, image.width, image.height).data;
+      for (let channel = 0; channel < 3; channel++) {
+        const out = document.createElement("canvas");
+        out.width = image.width;
+        out.height = image.height;
+        const octx = out.getContext("2d");
+        if (!octx) continue;
+        const data = octx.createImageData(image.width, image.height);
+        for (let p = 0; p < pixels.length; p += 4) {
+          data.data[p] = 255;
+          data.data[p + 1] = 113;
+          data.data[p + 2] = 37;
+          data.data[p + 3] = pixels[p + channel] ?? 0;
+        }
+        octx.putImageData(data, 0, 0);
+        onSketch(first + channel, out);
+      }
+    };
+    image.src = url;
+  };
+  load(`${texturePath}sketches/sketches_a.png`, 0);
+  load(`${texturePath}sketches/sketches_b.png`, 3);
+}
+
 export class CurveStudy {
   private ctx: CanvasRenderingContext2D | null;
   private quarter = document.createElement("canvas");
@@ -75,8 +116,9 @@ export class CurveStudy {
       g.fillStyle = gradient;
       g.fillRect(0, 0, 255, 255);
     }
-    this.loadSheet(`${texturePath}sketches/sketches_a.png`, 0);
-    this.loadSheet(`${texturePath}sketches/sketches_b.png`, 3);
+    loadSketches(texturePath, (index, sketch) => {
+      this.sketches[index] = sketch;
+    });
     window.addEventListener("pointermove", this.onPointerMove);
     this.resize();
   }
@@ -85,37 +127,6 @@ export class CurveStudy {
     this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.pointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
   };
-
-  /** Split a sheet into three orange line drawings, using each channel as that drawing's alpha. */
-  private loadSheet(url: string, first: number) {
-    const image = new Image();
-    image.onload = () => {
-      const source = document.createElement("canvas");
-      source.width = image.width;
-      source.height = image.height;
-      const sctx = source.getContext("2d", { willReadFrequently: true });
-      if (!sctx) return;
-      sctx.drawImage(image, 0, 0);
-      const pixels = sctx.getImageData(0, 0, image.width, image.height).data;
-      for (let channel = 0; channel < 3; channel++) {
-        const out = document.createElement("canvas");
-        out.width = image.width;
-        out.height = image.height;
-        const octx = out.getContext("2d");
-        if (!octx) continue;
-        const data = octx.createImageData(image.width, image.height);
-        for (let p = 0; p < pixels.length; p += 4) {
-          data.data[p] = 255;
-          data.data[p + 1] = 113;
-          data.data[p + 2] = 37;
-          data.data[p + 3] = pixels[p + channel] ?? 0;
-        }
-        octx.putImageData(data, 0, 0);
-        this.sketches[first + channel] = out;
-      }
-    };
-    image.src = url;
-  }
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();

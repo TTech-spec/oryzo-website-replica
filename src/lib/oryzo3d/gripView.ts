@@ -1,6 +1,8 @@
 // "Grip-locked antislip": the desk gives way to a monochrome close-up of the cork's edge, with a
 // draggable microscope window showing the texture gripping the surface.
 
+import { WaterBear3D } from "@/lib/oryzo3d/waterBear3D";
+
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const fit = (
   v: number,
@@ -50,6 +52,10 @@ const elasticOut = (t: number) =>
   t <= 0 ? 0 : t >= 1 ? 1 : 2 ** (-10 * t) * Math.sin(((t * 10 - 0.75) * (2 * Math.PI)) / 3) + 1;
 
 export class GripView {
+  /** The big 3D water bear, created the first time the bears wake. */
+  private bear3D: WaterBear3D | null = null;
+  private bear3DCanvas: HTMLCanvasElement | null;
+  private pointerPx = { x: 0, y: 0 };
   private bearCanvas: HTMLCanvasElement | null;
   private bearCtx: CanvasRenderingContext2D | null = null;
   private bearSheet: HTMLCanvasElement | null = null;
@@ -92,6 +98,7 @@ export class GripView {
     this.coeff = root.querySelector(".oz-grip-coeff");
     this.ctx = this.canvas?.getContext("2d") ?? null;
     this.bearCanvas = root.querySelector(".oz-grip-bears");
+    this.bear3DCanvas = root.querySelector(".oz-grip-bear3d");
     this.bearCtx = this.bearCanvas?.getContext("2d") ?? null;
     this.loadBears(microscopeUrl.replace("microscopic.webp", "WATERBEAR_2.webp"));
     this.loadPlanes(microscopeUrl);
@@ -291,6 +298,8 @@ export class GripView {
   };
 
   private onMove = (event: PointerEvent) => {
+    this.pointerPx.x = event.clientX;
+    this.pointerPx.y = event.clientY;
     const nx = (event.clientX / window.innerWidth) * 2 - 1;
     const ny = -((event.clientY / window.innerHeight) * 2 - 1);
     if (this.pointerNdc.x < 5) {
@@ -363,6 +372,7 @@ export class GripView {
       this.dragTravel = 0;
       this.previousX = 0;
       this.updateBears(dt, 0);
+      this.bear3D?.update(dt, new DOMRect(), false, 0, this.pointerPx);
       this.x = this.targetX = 0;
       this.hasDragged = false;
       this.draggedTime = 0;
@@ -399,6 +409,18 @@ export class GripView {
     if (this.dragTravel > 10) this.bearsActive = true;
     this.bearRatio = this.bearsActive ? Math.min(1, this.bearRatio + dt) : 0;
     this.updateBears(dt, this.bearRatio * fit(show, 0.3, 1, 0, 1) * (1 - hide));
+    if (this.bearsActive && !this.bear3D && this.bear3DCanvas) {
+      try {
+        this.bear3D = new WaterBear3D(this.bear3DCanvas);
+      } catch {
+        this.bear3DCanvas = null;
+      }
+    }
+    const box = this.inner?.getBoundingClientRect();
+    if (this.bear3D && box) {
+      const visible = fit(show, 0.3, 1, 0, 1) * (1 - hide);
+      this.bear3D.update(dt, box, this.bearsActive, visible, this.pointerPx);
+    }
   }
 
   private drawMicroscope(show: number, hide: number) {
@@ -476,6 +498,7 @@ export class GripView {
   }
 
   dispose() {
+    this.bear3D?.dispose();
     this.inner?.removeEventListener("pointerdown", this.onDown);
     window.removeEventListener("pointermove", this.onMove);
     window.removeEventListener("pointerup", this.onUp);

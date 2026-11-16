@@ -206,6 +206,28 @@ export class OryzoStage {
     uTextOpacity: { value: 0 },
     uFlipRot: { value: new Float32Array([1, 0, 0, 1]) },
     uDim: { value: 1 },
+    uImgTexture: { value: null as THREE.Texture | null },
+    uImgMVP: {
+      value: new THREE.Matrix4(
+        5.24828,
+        -0.203069,
+        -0.456906,
+        0.247969,
+        0,
+        8.61441,
+        -4.37579,
+        0.172101,
+        0,
+        0.020409,
+        0.0459202,
+        -0.0299466,
+        0,
+        -0.406138,
+        -0.913812,
+        0.495937,
+      ),
+    },
+    uImgOpacity: { value: 0 },
   };
   // Flip encryption: the message lives on the coaster's underside; flipping hides or reveals it.
   private flipTrack?: FrameAnimation;
@@ -492,6 +514,7 @@ export class OryzoStage {
     u.uEnv1.value = this.envHero = env("hero/env_hero.webp");
     u.uEnv2.value = env("hero/env_hand.webp");
     u.uBrdf.value = tex("brdf.png");
+    u.uImgTexture.value = dataTex("coaster/STACK.webp");
     this.coaster.add(this.coasterInner);
     const coasterGeometry = toGeometry(coasterData);
     this.coasterMesh = new THREE.Mesh(
@@ -884,6 +907,7 @@ export class OryzoStage {
     u.uThermalAnimation.value = 0;
     // It starts as a silhouette against the glow and brightens as it settles.
     u.uDim.value = 1 - 0.75 * fit(animation, 0.5, 1.2, 1, 0);
+    u.uImgOpacity.value = fit(animation, 2.925, 3, 0, 1);
     u.uLocalLight.value
       .set(0.346682, 1.00875, 0.368255)
       .lerp(STACK_LIGHT, settle)
@@ -1265,6 +1289,7 @@ export class OryzoStage {
     const bottom = this.track?.getBoundingClientRect().bottom ?? Infinity;
     this.stageShift = Math.max(0, vh - bottom);
     this.coasterUniforms.uDim.value = 1;
+    this.coasterUniforms.uImgOpacity.value = 0;
     if (this.coasterMesh) this.coasterMesh.position.y = 0;
     for (const extra of this.stackExtras) extra.mesh.visible = false;
     if (this.stageShift >= vh) {

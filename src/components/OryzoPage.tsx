@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FlipText } from "@/components/oryzo/FlipText";
 import { IntroStage } from "@/components/oryzo/IntroStage";
 import { ModelPaper } from "@/components/oryzo/ModelPaper";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
@@ -20,10 +21,18 @@ export function OryzoPage() {
           <OryzoLogo />
         </a>
         <nav className="oz-nav" aria-label="Main navigation">
-          <a href="#intro">Intro</a>
-          <a href="#features">Features</a>
-          <a href="#product">Product</a>
-          <a href="#contact">Contact</a>
+          <a href="#intro" className="oz-flip-host">
+            <FlipText text="Intro" />
+          </a>
+          <a href="#features" className="oz-flip-host">
+            <FlipText text="Features" />
+          </a>
+          <a href="#product" className="oz-flip-host">
+            <FlipText text="Product" />
+          </a>
+          <a href="#contact" className="oz-flip-host">
+            <FlipText text="Contact" />
+          </a>
         </nav>
       </header>
       <a className="oz-model-tab" href="#open-weight">
