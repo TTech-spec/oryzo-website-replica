@@ -1,4 +1,5 @@
 import { FEATURE_EQUATIONS, FEATURE_ICONS } from "@/components/oryzo/featureArt";
+import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 
 export const FEATURES = [
   {
@@ -56,6 +57,10 @@ export function FeaturesLayer() {
           </article>
         ))}
       </div>
+      <div className="oz-feat-logo" aria-hidden="true">
+        <OryzoLogo />
+      </div>
+      <canvas className="oz-feat-curve" aria-hidden="true" />
       <div className="oz-feat-slider" aria-hidden="true">
         <div className="oz-feat-slider-text">
           <span>

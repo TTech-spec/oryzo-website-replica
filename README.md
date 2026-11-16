@@ -12,7 +12,9 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Wearable gallery**: "So portable, it's wearable" — the coaster spins while a red foil wrapper closes around it, the wrapper tears open (a baked simulation played from a texture), and the coaster flies back to land on the jacket photo. The headline is drawn in the 3D layer from a distance-field texture and breaks up into grain behind the photo as it arrives. Then a framed gallery steps sideways through eight scenes (two videos, the bikini prompt, the stunt warning) and ends on the RISE magazine cover, which opens up to fill the screen.
 - **Hero UI**: wordmark, intro copy, studio card, and a film button that opens the Vimeo player.
 - **Desk scene**: the magazine cover is a live 3D window onto the desk set. Desk, wall and pegboard are baked-texture meshes with ray-marched contact shadows; the props (keyboard, controller, pegboard clutter) are Gaussian splats; the coffee cup drops onto the coaster. The frame then opens to full screen and the baked features camera move plays with the Elevate, Thermodynamic stability and More Circular copy.
-- **Remaining sections** (thermal and roundness effects, flip encryption, grip, sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
+- **Desk effects**: a heat-camera pass for Thermodynamic stability (diagonal wipe, glowing cup, temperature scale), swaying window light, a mirror image of the props in the desk varnish, and steam from the cup.
+- **Roundness study**: for More Circular, a blueprint canvas draws the coaster as bezier arcs with control handles while design sketches drift around it; the circle then grows and splits into the O's of the ORYZO wordmark.
+- **Remaining sections** (flip encryption, grip, sustainability, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
 ## Tech stack
 
@@ -33,6 +35,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
 | `src/components/oryzo/FeaturesLayer.tsx` | Features copy shown over the desk scene |
 | `src/lib/oryzo3d/table.ts` | Desk set: surfaces, coffee cup, baked features animation |
+| `src/lib/oryzo3d/curveStudy.ts` | 2D blueprint canvas for the roundness study |
 | `src/lib/oryzo3d/splats.ts` | Gaussian splat loader and renderer for `.sog` files |
 | `src/lib/oryzo3d/anim.ts` | Baked transform tracks and geometry helpers |
 | `src/lib/oryzo3d/wrapper.ts` | Foil wrapper tear driven by a baked animation texture |
@@ -66,7 +69,7 @@ Scroll position is measured in viewport heights. The first ten screens are pinne
 3. From frame 71 the hand rises under the coaster, skinned on the GPU from 36 baked bones.
 4. `5.5 – 8`: the "Powered by AI" highlight glow.
 5. `8 – 21.25`: the wearable gallery, on its own clock that starts at 8. From 18 the desk set renders inside the magazine frame.
-6. `21.25 – 27.75`: the frame opens to full screen and the features camera move plays.
+6. `21.25 – 30.75`: the frame opens to full screen, the features camera move plays, then the roundness study.
 
 ## Deploying to Vercel
 

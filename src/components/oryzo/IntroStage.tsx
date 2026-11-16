@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { FeaturesLayer } from "@/components/oryzo/FeaturesLayer";
+import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
+import type { CurveStudy } from "@/lib/oryzo3d/curveStudy";
 import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
 
 const cubicInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -10,33 +12,6 @@ const backIn = (t: number) => 2.70158 * t * t * t - 1.70158 * t * t;
 
 const TITLE = "Powered by AI";
 const PRE_TITLE = ["isn’t just", "a coaster."];
-
-export function OryzoLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 809 174" role="img" aria-label="Oryzo">
-      <path
-        fill="currentColor"
-        d="M87 174.007C36 174.007 0 132.007 0 87.007C0 42.007 36 0.00697267 87 0.00697267C138 0.00697267 174 42.007 174 87.007C174 132.007 138 174.007 87 174.007ZM87 135.007C112 135.007 135 114.988 135 87.007C135 59.0264 112 39.007 87 39.007C62 39.007 39 59.0264 39 87.007C39 114.988 62 135.007 87 135.007Z"
-      />
-      <path
-        fill="currentColor"
-        d="M196.21 170.007V3.64971H263.618C307.624 3.64971 327.21 27.5604 327.21 60.6284C327.21 84.0304 317.29 103.108 295.923 112.011L333.315 170.007H284.476L254.969 117.861H237.418V170.007H196.21ZM237.418 79.7061H264.126C280.66 79.7061 285.493 71.5663 285.493 60.6284C285.493 49.6905 280.66 41.8051 264.126 41.8051H237.418V79.7061Z"
-      />
-      <path
-        fill="currentColor"
-        d="M385.705 170.007V101.073L324.911 3.64971H373.495L406.309 62.1546L439.122 3.64971H486.689L426.913 99.8012V170.007H385.705Z"
-      />
-      <path
-        fill="currentColor"
-        d="M490.688 170.007V133.124L567.762 41.8051H494.503V3.64971H619.907V40.5333L542.834 131.852H622.451V170.007H490.688Z"
-      />
-      <path
-        fill="currentColor"
-        d="M722 174C671 174 635 132 635 87C635 42 671 0 722 0C773 0 809 42 809 87C809 132 773 174 722 174ZM722 135C747 135 770 114.981 770 87C770 59.0194 747 39 722 39C697 39 674 59.0194 674 87C674 114.981 697 135 722 135Z"
-      />
-    </svg>
-  );
-}
 
 /**
  * The pinned opening sequence: desk hero -> "isn't just a coaster" -> "Powered by AI".
@@ -136,13 +111,30 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       set("--mag-zoom", 0);
     };
 
+    const curveCanvas = root.querySelector<HTMLCanvasElement>(".oz-feat-curve");
+    let curveStudy: CurveStudy | undefined;
+    let lastCurveTime = performance.now();
+    const panelWidth = () =>
+      root.querySelector(".oz-feat-items")?.getBoundingClientRect().width ?? 0;
+    const onResize = () => curveStudy?.resize();
+    window.addEventListener("resize", onResize);
     const featureItems = Array.from(root.querySelectorAll<HTMLElement>(".oz-feat-item"));
     const featureExtras = Array.from(root.querySelectorAll<HTMLElement>(".oz-feat-extra"));
 
     // Features copy: each item fades in over 0.625 viewports, holds, and hands over to the next.
     const applyFeatures = (a: number) => {
-      const active = a > 0 && a < 6.6;
+      const active = a > 0 && a < 9.6;
       root.dataset["feat"] = active ? "on" : "off";
+      // The roundness study runs on its own clock, starting as the third feature arrives.
+      let curve = fit(a, 4.5, 5.125, 0, 1);
+      curve = fit(a, 5.875, 7, curve, 2);
+      curve = fit(a, 7, 8.5, curve, 3);
+      curve = fit(a, 8.5, 10.5, curve, 4);
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - lastCurveTime) / 1000);
+      lastCurveTime = now;
+      curveStudy?.update(dt, active ? curve : 0, panelWidth());
+      root.style.setProperty("--feat-logo", (active ? fit(curve, 2.5, 3, 0, 0.1) : 0).toFixed(4));
       if (!active) return;
       let first = 0;
       let lastOut = 0;
@@ -194,6 +186,10 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       applyFeatures(r - 21.25);
     };
 
+    void import("@/lib/oryzo3d/curveStudy").then(({ CurveStudy }) => {
+      if (cancelled || !curveCanvas) return;
+      curveStudy = new CurveStudy(curveCanvas, "/oryzo/textures/");
+    });
     void import("@/lib/oryzo3d/stage").then(({ OryzoStage }) => {
       if (cancelled) return;
       stage = new OryzoStage(canvas);
@@ -204,6 +200,8 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
     return () => {
       cancelled = true;
       stage?.dispose();
+      curveStudy?.dispose();
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 

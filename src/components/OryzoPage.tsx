@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import heroImage from "@/assets/oryzo-hero.jpg";
-import { IntroStage, OryzoLogo } from "@/components/oryzo/IntroStage";
+import { IntroStage } from "@/components/oryzo/IntroStage";
+import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { Button } from "@/components/ui/button";
 import { campaignCards, coasterModels, flipMessage, reviewCards } from "@/lib/oryzo";
 

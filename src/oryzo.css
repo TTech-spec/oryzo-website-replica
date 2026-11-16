@@ -104,8 +104,8 @@
 
 .oz-stage-track {
   position: relative;
-  /* 900vh of intro + 1325vh of wearable gallery + 650vh of features, all on one pinned stage. */
-  height: 2875vh;
+  /* 900vh of intro + 1325vh of wearable gallery + 950vh of features, all on one pinned stage. */
+  height: 3175vh;
   --hero: 1;
   --pre: 0;
   --pre-x: -1;
@@ -1113,6 +1113,31 @@
   text-align: right;
   text-transform: uppercase;
   transform: translateY(calc((1 - var(--in)) * 0.6em));
+}
+
+/* Roundness study: blueprint canvas and the faint wordmark its circles grow into. */
+.oz-feat-curve {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+}
+
+.oz-feat-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 94vw;
+  transform: translate(-50%, -50%);
+  color: var(--oz-cream);
+  opacity: var(--feat-logo, 0);
+}
+
+.oz-feat-logo svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 /* Temperature scale shown with the heat camera. */
