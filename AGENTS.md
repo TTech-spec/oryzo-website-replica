@@ -28,3 +28,5 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+Keep the ORYZO experience as one section-linked product showcase, with tier and testimonial data in separate frontend utilities, because the original is a single-page campaign, not a multi-route store.
