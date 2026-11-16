@@ -104,6 +104,13 @@ export const coasterFragment = /* glsl */ `
   uniform float uTime;
   uniform float uWrapperRatio;
   uniform float uWearableBlend;
+  // Desk set: direct lamp, message stamped into the underside, and the close-up relight.
+  uniform float uTable;
+  uniform float uCloseUp;
+  uniform vec3 uLightWorld;
+  uniform sampler2D uTextMap;
+  uniform float uTextOpacity;
+  uniform mat2 uFlipRot;
 
   ${rainbow}
   ${goboChunk}
@@ -171,15 +178,39 @@ export const coasterFragment = /* glsl */ `
     return clamp(color, 0.0, 1.0);
   }
 
+  // The message texture: rg = emboss slope, b = ink coverage. It sits on the flat underside,
+  // 8:1, across most of the diameter.
+  vec3 messageAt() {
+    vec3 pos = vModelPosition;
+    pos.xz = uFlipRot * pos.xz;
+    vec2 uv = (pos.xz + 0.03912) / (2.0 * 0.03912);
+    uv = (uv - 0.5) * 1.2 * vec2(8.0, 1.0) + 0.5;
+    uv = uv.yx;
+    uv.x = 1.0 - uv.x;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec3(0.0);
+    float underside = 1.0 - step(0.0, pos.y);
+    return underside * uTextOpacity * texture2D(uTextMap, uv).rgb;
+  }
+  float burn(float base, float blend) { return max(1.0 - (1.0 - base) / blend, 0.0); }
+
   void main() {
     vec3 texel = texture2D(uDiffuse, vUv).rgb;
     float height = texture2D(uHeight, vUv).r;
     vec3 albedo = pow(texel, vec3(mix(2.0, 1.85, uHeroRatio)));
+    vec3 message = uTable > 0.5 ? messageAt() : vec3(0.0);
+    if (uTable > 0.5) {
+      albedo = pow(texel, vec3(mix(1.8, 1.7, uCloseUp)));
+      // The message is burnt into the cork.
+      vec3 burnt = 0.25 * vec3(burn(albedo.r, 0.25), burn(albedo.g, 0.25), burn(albedo.b, 0.25));
+      albedo = mix(albedo, burnt, 0.85 * message.z);
+    }
 
     float bumpScale = 1.0 + 0.5 * max(uHighlight, uWrapperRatio) + uExtraBump;
+    if (uTable > 0.5) bumpScale = mix(3.0, 5.0, smoothstep(0.0, 0.5, uCloseUp));
     vec2 dSTdx = dFdx(vUv);
     vec2 dSTdy = dFdy(vUv);
     vec2 dHdxy = (vec2(texture2D(uHeight, vUv + dSTdx).r, texture2D(uHeight, vUv + dSTdy).r) - height) * bumpScale;
+    dHdxy -= 4.0 * message.xy * message.z;
     vec3 viewNormal = perturbNormalArb(-vViewPosition, normalize(vViewNormal), dHdxy);
 
     vec3 N = normalize((vec4(viewNormal, 0.0) * viewMatrix).xyz);
@@ -212,6 +243,25 @@ export const coasterFragment = /* glsl */ `
     // On the jacket the coaster takes a flatter, photographic look to sit in the picture.
     vec3 wearableColor = 4.0 * pow(texel, vec3(3.0 - 0.5 * vAo)) * (0.05 + 0.95 * smoothstep(0.0, 0.3, shadow * shadow));
     color = mix(color, wearableColor, uWearableBlend);
+
+    if (uTable > 0.5) {
+      // On the desk the coaster is lit by the lamp directly, with a green bounce off the mat
+      // once the camera moves in close.
+      vec3 L = normalize(uLightWorld - vWorldPosition);
+      float NdL = max(0.0, dot(N, L));
+      vec3 indirect = diffuseColor * diffuseLight + specularLight * (f0 * brdf.x + brdf.y);
+      float lit = calcSoftshadow(vModelPosition, normalize(uLocalLight), 0.0015, 0.08, 0.5);
+      vec3 closeUp = albedo * 3.5 * (0.1 + 0.9 * NdL);
+      closeUp *= 0.8 + 0.2 * vAo;
+      vec3 bounce = pow(vec3(0.412, 0.596, 0.486), vec3(2.2));
+      closeUp += bounce * albedo * 4.0 * step(0.04, length(vModelPosition.xz)) * (0.1 + smoothstep(0.014, -0.004, vWorldPosition.y));
+      closeUp *= 0.3 + 0.7 * lit * lit;
+      vec3 feature = albedo * NdL + 0.5 * indirect;
+      feature *= 0.5 + 0.5 * lit * lit;
+      feature *= 0.75 + 0.25 * vAo;
+      feature = feature * 0.75 + 0.1 * albedo;
+      color = mix(feature, closeUp, uCloseUp);
+    }
 
     // Heat camera: cork reads cool, warming only where the rim is thin and exposed.
     float thermalLuma = dot(pow(texel, vec3(1.8)), vec3(0.2126, 0.7152, 0.0722));

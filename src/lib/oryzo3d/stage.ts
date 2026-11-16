@@ -168,7 +168,26 @@ export class OryzoStage {
     uThermalTexture: { value: null as THREE.Texture | null },
     uThermalAnimation: { value: 0 },
     uResolution: { value: new THREE.Vector2(1, 1) },
+    uTable: { value: 0 },
+    uCloseUp: { value: 0 },
+    uLightWorld: { value: new THREE.Vector3() },
+    uTextMap: { value: null as THREE.Texture | null },
+    uTextOpacity: { value: 0 },
+    uFlipRot: { value: new Float32Array([1, 0, 0, 1]) },
   };
+  // Flip encryption: the message lives on the coaster's underside; flipping hides or reveals it.
+  private flipTrack?: FrameAnimation;
+  private messageCanvas = document.createElement("canvas");
+  private messageTexture = new THREE.CanvasTexture(this.messageCanvas);
+  private isFlipped = true;
+  private flipProgress = 0;
+  private flipNeedsDemo = true;
+  private flipAngle = Math.random() * Math.PI * 2;
+  private tableClock = 0;
+  private envGrip: THREE.Texture | null = null;
+  private envHand: THREE.Texture | null = null;
+  /** Called when the coaster starts turning over; true means the message side is facing up. */
+  onFlipped?: (messageUp: boolean) => void;
   /** Child of the coaster that carries its flight onto the jacket. */
   private coasterInner = new THREE.Object3D();
   private coasterFlight?: FrameAnimation;
@@ -488,6 +507,11 @@ export class OryzoStage {
 
     // Desk set for the magazine cover and features section.
     this.envTable = env("table/env_table.webp");
+    this.envGrip = env("table/env_grip.webp");
+    this.envHand = u.uEnv2.value;
+    this.flipTrack = new FrameAnimation(await loadBuf(MODEL_PATH + "COASTER_FLIP_ANIM.buf"));
+    u.uTextMap.value = this.messageTexture;
+    this.setMessage(this.message);
     const riseTexture = tex("wearable/rise.webp");
     riseTexture.minFilter = THREE.LinearFilter;
     riseTexture.generateMipmaps = false;
@@ -709,18 +733,27 @@ export class OryzoStage {
     t = fit(a, 0, 1.45, t, 4);
     t = fit(a, 1.55, 3.45, t, 5);
     t = fit(a, 3.55, 5, t, 6);
+    t = fit(a, 9.5, 10.5, t, 7);
+    t = fit(a, 10.5, 11.5, t, 8);
+    this.tableClock = t;
     const table = this.table;
     if (t <= 0 || !table.ready) return false;
     // At 6 the set cuts to the dark roundness study.
-    if (t >= 6) {
+    if (t >= 6 && t < 6.75) {
       this.renderer.setScissorTest(false);
       this.renderer.clear();
+      this.updateFlip(t, dt);
       return true;
     }
 
     let frame = fit(t, 1.5, 3, 0, 44);
     frame = fit(t, 3, 4, frame, 89);
     frame = fit(t, 5, 5.5, frame, 209);
+    if (t >= 6.5) {
+      // Flip encryption: top-down on the coaster, then swinging down to table level.
+      frame = fit(t, 7.5, 8, 239, 269);
+      frame = fit(t, 8, 8.5, frame, 319);
+    }
 
     const camera = this.camera;
     this.coasterInner.position.set(0, 0, 0);
@@ -730,6 +763,11 @@ export class OryzoStage {
     const fov = table.applyFrame(frame, camera, this.coaster);
     camera.fov = fov ?? FOV;
     camera.zoom = 1;
+    if (t >= 6.5) {
+      camera.zoom = fit(t, 8, 8.5, 1, 0.8);
+      camera.zoom = fit(t, 8.5, 9, camera.zoom, 1);
+    }
+    this.updateFlip(t, dt);
     if (t < 1) {
       // The cover slides in with the gallery: slightly zoomed and tilted, settling as it arrives.
       const settle = fit(t, 0.1, 0.9, 0, 1, sineInOut);
@@ -758,7 +796,7 @@ export class OryzoStage {
     // Aim the lens at the frame, then drift right to make room for the features copy.
     const open = fit(t, 3, 3.5, 0, 1);
     const fromOffset = (itemLeft + frameWidth / 2) / width - 0.5;
-    const offset = fromOffset + (FEATURES_VIEW_OFFSET - fromOffset) * open;
+    const offset = t > 6 ? 0 : fromOffset + (FEATURES_VIEW_OFFSET - fromOffset) * open;
     camera.setViewOffset(width, height, -offset * width, 0, width, height);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
@@ -766,7 +804,22 @@ export class OryzoStage {
 
     const u = this.coasterUniforms;
     u.uEnv1.value = this.envTable;
-    u.uEnvBlend.value = 0;
+    u.uEnv2.value = this.envGrip;
+    u.uEnvBlend.value = fit(t, 8, 8.5, 0, 1);
+    u.uTable.value = 1;
+    u.uCloseUp.value = fit(t, 8, 9, 0, 1);
+    u.uTextOpacity.value = 1;
+    // The lamp drops to table height for the close-up.
+    table.lightPosition.set(
+      0.346682,
+      1.00875 + (0.13 - 1.00875) * fit(t, 8.25, 8.5, 0, 1),
+      0.168255,
+    );
+    u.uLightWorld.value.copy(table.lightPosition);
+    // The set fades up out of the dark roundness study.
+    const fading = t >= 6.75 && t < 7;
+    this.canvas.style.transition = fading ? "none" : "";
+    this.canvas.style.opacity = fading ? String(fit(t, 6.75, 7, 0, 1, cubicOut)) : "";
     u.uHeroRatio.value = 0;
     u.uHighlight.value = 0;
     u.uExtraBump.value = 0;
@@ -851,6 +904,101 @@ export class OryzoStage {
   }
 
   /** Start drawing a frame, through the bloom buffer when any glow is wanted. */
+  private message = "ORYZO";
+
+  /** Stamp a new message into the coaster's underside. */
+  setMessage(text: string) {
+    this.message = text.toUpperCase().slice(0, 10);
+    const canvas = this.messageCanvas;
+    const width = (canvas.width = 1024);
+    const height = (canvas.height = 128);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = "#fff";
+    ctx.font = '700 118px Inter, "Hanken Grotesk", "Helvetica Neue", Arial, sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if ("letterSpacing" in ctx)
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "-3px";
+    ctx.fillText(this.message, width / 2, height / 2 + 6, width - 24);
+    // Repack as: r, g = emboss slope towards +x / +y, b = ink coverage.
+    const image = ctx.getImageData(0, 0, width, height);
+    const src = image.data;
+    const ink = new Uint8Array(width * height);
+    for (let i = 0; i < ink.length; i++) ink[i] = src[i * 4] ?? 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        const a = ink[i] ?? 0;
+        src[i * 4] = Math.max(0, (ink[i + 1] ?? a) - a);
+        src[i * 4 + 1] = Math.max(0, (ink[i + width] ?? a) - a);
+        src[i * 4 + 2] = a;
+        src[i * 4 + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    this.messageTexture.needsUpdate = true;
+  }
+
+  /** Turn the coaster over (only while the flip demo is on screen). */
+  flipCoaster() {
+    if (this.tableClock < 6.75 || this.tableClock >= 8.1) return;
+    this.isFlipped = !this.isFlipped;
+    this.onFlipped?.(this.isFlipped);
+  }
+
+  /** Advance the flip. Progress 0 = message up, 1 = message down, 1..2 = turning back up. */
+  private updateFlip(t: number, dt: number) {
+    const wasFlipped = this.isFlipped;
+    if (t < 6.75) {
+      this.isFlipped = true;
+      this.flipProgress = 0;
+      this.flipNeedsDemo = true;
+    } else if (t >= 8.5) {
+      this.isFlipped = false;
+      this.flipProgress = 1;
+    } else {
+      // Scrolling in, the coaster shows its message, then turns over once by itself.
+      if (this.flipNeedsDemo && t >= 7.75) {
+        this.isFlipped = false;
+        this.flipNeedsDemo = false;
+      }
+      if (t > 8.1) this.isFlipped = false;
+      const showing = this.flipProgress === 0 || this.flipProgress > 1;
+      let progress = this.flipProgress;
+      if (this.isFlipped !== showing || progress % 1 !== 0) {
+        if (progress === 1) this.flipAngle = Math.random() * Math.PI * 2;
+        const before = Math.floor(progress);
+        progress += Math.min(0.999, dt * 1.25 * fit(t, 8.1, 8.5, 1, 4));
+        if (Math.floor(progress) !== before) progress = Math.floor(progress) % 2;
+      }
+      this.flipProgress = progress;
+    }
+    if (wasFlipped !== this.isFlipped) this.onFlipped?.(this.isFlipped);
+
+    if (t >= 6.75 && this.flipTrack) {
+      const p = this.flipProgress;
+      const frame = p > 1 ? fit(p, 1, 2, 0, 31) : fit(p, 0, 1, 31, 63);
+      const inner = this.coasterInner;
+      this.flipTrack.apply(inner, frame);
+      // Each flip tumbles about a different horizontal axis: conjugate by a random turn.
+      inner.updateMatrix();
+      this.m0.makeRotationY(this.flipAngle);
+      inner.matrix.premultiply(this.m0).multiply(this.m0.invert());
+      inner.matrix.decompose(inner.position, inner.quaternion, inner.scale);
+      const c = -this.flipAngle * 2 + Math.PI / 2;
+      // Column-major: the text turns against the tumble so it always reads level.
+      this.coasterUniforms.uFlipRot.value.set([
+        Math.cos(c),
+        -Math.sin(c),
+        Math.sin(c),
+        Math.cos(c),
+      ]);
+    }
+  }
+
   private beginFrame() {
     const glow = this.bloomSettings.amount > 0.01;
     if (glow) this.bloom.resize(this.renderer);
@@ -916,6 +1064,10 @@ export class OryzoStage {
     this.camera.updateProjectionMatrix();
     this.coasterUniforms.uEnv1.value = this.envHero;
     this.coasterUniforms.uGoboOpacity.value = 0;
+    this.coasterUniforms.uTable.value = 0;
+    this.coasterUniforms.uEnv2.value = this.envHand;
+    this.canvas.style.transition = "";
+    this.canvas.style.opacity = "";
     this.coasterUniforms.uThermalAnimation.value = 0;
     this.renderer.setScissorTest(false);
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { EncryptionLayer } from "@/components/oryzo/EncryptionLayer";
 import { FeaturesLayer } from "@/components/oryzo/FeaturesLayer";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
 import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
@@ -22,6 +23,8 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
+  const [messageUp, setMessageUp] = useState(true);
+  const stageRef = useRef<OryzoStage | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -123,7 +126,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
 
     // Features copy: each item fades in over 0.625 viewports, holds, and hands over to the next.
     const applyFeatures = (a: number) => {
-      const active = a > 0 && a < 9.6;
+      const active = a > 0 && a < 10.7;
       root.dataset["feat"] = active ? "on" : "off";
       // The roundness study runs on its own clock, starting as the third feature arrives.
       let curve = fit(a, 4.5, 5.125, 0, 1);
@@ -134,7 +137,23 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       const dt = Math.min(0.1, (now - lastCurveTime) / 1000);
       lastCurveTime = now;
       curveStudy?.update(dt, active ? curve : 0, panelWidth());
-      root.style.setProperty("--feat-logo", (active ? fit(curve, 2.5, 3, 0, 0.1) : 0).toFixed(4));
+      curve = fit(a, 10.5, 10.6, curve, 5);
+      // The wordmark brightens, then shrinks onto the coaster as the desk fades back in.
+      let logo = fit(curve, 2.5, 3, 0, 0.1);
+      logo = fit(curve, 3.5, 4, logo, 0.3);
+      logo = fit(curve, 4, 5, logo, 0);
+      const logoHeight = (window.innerWidth * 0.94 * 174) / 809;
+      const endScale = (window.innerHeight * 0.027) / logoHeight;
+      root.style.setProperty("--feat-logo", (a > 0 && a < 10.7 ? logo : 0).toFixed(4));
+      root.style.setProperty(
+        "--feat-logo-scale",
+        fit(curve, 3.5, 4, 1, endScale, cubicOut).toFixed(5),
+      );
+      root.style.setProperty(
+        "--feat-logo-y",
+        `${fit(curve, 3.75, 4, 0, (5.75 * 1080) / window.innerHeight - 4, cubicOut).toFixed(2)}px`,
+      );
+      root.style.setProperty("--feat-logo-dark", fit(curve, 3.5, 4, 0, 1).toFixed(4));
       if (!active) return;
       let first = 0;
       let lastOut = 0;
@@ -161,6 +180,17 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       );
     };
 
+    // Flip encryption copy: o is viewport heights into its section.
+    const applyEncryption = (o: number) => {
+      const show = fit(o, 0.5, 1, 0, 1);
+      const gone = fit(o, 2, 3, 0, 1);
+      const active = show * (1 - gone) > 0;
+      root.dataset["enc"] = active ? "on" : "off";
+      if (!active) return;
+      root.style.setProperty("--enc-in", show.toFixed(4));
+      root.style.setProperty("--enc-out", gone.toFixed(4));
+    };
+
     const applyFrame = ({ r, heroActive }: StageFrame) => {
       const set = (name: string, value: number) => root.style.setProperty(name, value.toFixed(4));
       set("--hero", heroActive);
@@ -184,6 +214,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       root.dataset["phase"] = heroActive > 0 ? "hero" : "ai";
       applyWearable(r - 8);
       applyFeatures(r - 21.25);
+      applyEncryption(r - 21.25 - 10.5);
     };
 
     void import("@/lib/oryzo3d/curveStudy").then(({ CurveStudy }) => {
@@ -195,11 +226,14 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       stage = new OryzoStage(canvas);
       stage.onFrame = applyFrame;
       stage.onReady = () => setReady(true);
+      stage.onFlipped = setMessageUp;
+      stageRef.current = stage;
     });
 
     return () => {
       cancelled = true;
       stage?.dispose();
+      stageRef.current = null;
       curveStudy?.dispose();
       window.removeEventListener("resize", onResize);
     };
@@ -312,6 +346,14 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
 
         <WearableLayer />
         <FeaturesLayer />
+        <EncryptionLayer
+          messageUp={messageUp}
+          onMessage={(text) => stageRef.current?.setMessage(text)}
+          onFlip={() => stageRef.current?.flipCoaster()}
+          onEdit={() => {
+            if (!messageUp) stageRef.current?.flipCoaster();
+          }}
+        />
       </div>
     </section>
   );

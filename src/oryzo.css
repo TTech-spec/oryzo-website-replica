@@ -104,8 +104,8 @@
 
 .oz-stage-track {
   position: relative;
-  /* 900vh of intro + 1325vh of wearable gallery + 950vh of features, all on one pinned stage. */
-  height: 3175vh;
+  /* 900vh of intro + 1325vh of wearable gallery + 1450vh of features and flip encryption, all on one pinned stage. */
+  height: 3675vh;
   --hero: 1;
   --pre: 0;
   --pre-x: -1;
@@ -130,6 +130,8 @@
   --mag-fly: 0;
   --mag-num: 1;
   --mag-zoom: 0;
+  --enc-in: 0;
+  --enc-out: 0;
 }
 
 .oz-anchor {
@@ -1129,8 +1131,9 @@
   left: 50%;
   top: 50%;
   width: 94vw;
-  transform: translate(-50%, -50%);
-  color: var(--oz-cream);
+  transform: translate(-50%, -50%) translateY(var(--feat-logo-y, 0px))
+    scale(var(--feat-logo-scale, 1));
+  color: color-mix(in srgb, #4d3e36 calc(var(--feat-logo-dark, 0) * 100%), var(--oz-cream));
   opacity: var(--feat-logo, 0);
 }
 
@@ -1232,6 +1235,171 @@
 
 .oz-feat-extra:nth-child(3) .oz-feat-equation svg {
   height: 3.3vw;
+}
+
+/* ---------- Flip encryption ---------- */
+
+.oz-enc {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.oz-stage-track:not([data-enc="on"]) .oz-enc {
+  visibility: hidden;
+}
+
+.oz-enc-main {
+  position: absolute;
+  left: 0;
+  top: calc(var(--oz-pad-y) + 8vh);
+  width: 100%;
+  height: 48vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.oz-enc-header {
+  flex-grow: 1;
+}
+
+.oz-enc-tagline {
+  margin: 0;
+  font-size: 1.18vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-transform: uppercase;
+  opacity: calc(min(1, var(--enc-in) * 2.2) * (1 - min(1, var(--enc-out) * 2.5)));
+  transform: translateY(calc((1 - min(1, var(--enc-in) * 2.2)) * 1em));
+}
+
+.oz-enc-title {
+  margin: 0.45em 0;
+  font-size: 3.9vw;
+  font-weight: 500;
+  line-height: 0.9;
+  text-transform: uppercase;
+  opacity: calc(min(1, var(--enc-in) * 1.6) * (1 - var(--enc-out)));
+  filter: blur(calc((1 - min(1, var(--enc-in) * 1.4)) * 0.3em));
+}
+
+.oz-enc-desc {
+  margin: 0;
+  font-size: 1.18vw;
+  font-weight: 400;
+  line-height: 1.333;
+  opacity: calc(clamp(0, var(--enc-in) * 2.5 - 1, 1) * (1 - min(1, var(--enc-out) * 1.6)));
+  transform: translateY(calc((1 - clamp(0, var(--enc-in) * 2.5 - 1, 1)) * 1.2em));
+}
+
+/* The field's dashed outline draws itself, one side after another. */
+.oz-enc-field {
+  --draw: clamp(0, calc(var(--enc-in) * 1.25 - 0.25), 1);
+  position: relative;
+  margin-top: 0.25em;
+  background: rgba(104, 121, 82, calc(0.15 * var(--draw)));
+  -webkit-backdrop-filter: blur(0.6vw);
+  backdrop-filter: blur(0.6vw);
+  opacity: calc(1 - clamp(0, calc(var(--enc-out) * 1.25 - 0.25), 1));
+}
+
+.oz-enc-line {
+  position: absolute;
+}
+
+.oz-enc-line:nth-child(odd) {
+  width: calc(var(--draw) * 100%);
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--oz-cream) 0 3px, transparent 0 6px);
+}
+
+.oz-enc-line:nth-child(even) {
+  width: 1px;
+  height: calc(var(--draw) * 100%);
+  background: repeating-linear-gradient(0deg, var(--oz-cream) 0 3px, transparent 0 6px);
+}
+
+.oz-enc-line:nth-child(1) {
+  left: 0;
+  top: 0;
+}
+
+.oz-enc-line:nth-child(2) {
+  right: 0;
+  top: 0;
+}
+
+.oz-enc-line:nth-child(3) {
+  right: 0;
+  bottom: 0;
+}
+
+.oz-enc-line:nth-child(4) {
+  left: 0;
+  bottom: 0;
+}
+
+.oz-enc-field input {
+  display: block;
+  width: 16em;
+  padding: 1em 1.5em;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--oz-cream);
+  font: inherit;
+  font-size: 1.18vw;
+  text-align: center;
+  opacity: clamp(0, calc(var(--draw) * 2 - 1), 1);
+  pointer-events: auto;
+}
+
+.oz-enc-button {
+  position: relative;
+  margin-top: 1.5em;
+  padding: 1.2em 2em;
+  border: 0;
+  overflow: hidden;
+  background: var(--oz-cream);
+  color: #171210;
+  font: inherit;
+  font-size: 0.92vw;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 0.18s ease-in-out,
+    color 0.18s;
+  opacity: calc(
+    clamp(0, calc(var(--enc-in) * 2 - 1), 1) * (1 - clamp(0, calc(var(--enc-out) * 2 - 1), 1))
+  );
+}
+
+.oz-enc-button.is-active:not(:hover),
+.oz-enc-button:hover:not(.is-active) {
+  background: #171210;
+  color: var(--oz-cream);
+}
+
+.oz-enc-button-inner {
+  position: relative;
+  display: block;
+  transition: transform 0.18s ease-in-out;
+}
+
+.oz-enc-button-inner span:nth-child(2) {
+  position: absolute;
+  top: 2.5em;
+  left: 0;
+}
+
+.oz-enc-button.is-active .oz-enc-button-inner {
+  transform: translateY(-2.5em);
 }
 
 /* ---------- Film overlay ---------- */

@@ -7,6 +7,7 @@ export class FrameAnimation {
   private positions: Float32Array;
   private orients: Float32Array;
   private focals?: Float32Array;
+  private scales?: Float32Array;
   frameCount: number;
   private v = new THREE.Vector3();
   private q = new THREE.Quaternion();
@@ -16,6 +17,8 @@ export class FrameAnimation {
     this.orients = floatAttribute(data, "orient");
     const focal = data.attributes["focal"];
     if (focal) this.focals = Float32Array.from(focal.array);
+    const scale = data.attributes["scale"];
+    if (scale && scale.itemSize === 3) this.scales = scale.array as Float32Array;
     this.frameCount = this.positions.length / 3;
   }
 
@@ -33,6 +36,9 @@ export class FrameAnimation {
     target.quaternion
       .fromArray(this.orients, i * 4)
       .slerp(this.q.fromArray(this.orients, j * 4), t);
+    if (this.scales) {
+      target.scale.fromArray(this.scales, i * 3).lerp(this.v.fromArray(this.scales, j * 3), t);
+    }
     if (!this.focals) return undefined;
     const a = this.focals[i] ?? 50;
     return a + ((this.focals[j] ?? a) - a) * t;
