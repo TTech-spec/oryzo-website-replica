@@ -29,6 +29,15 @@ function Thumbs({ side }: { side: "left" | "right" }) {
   );
 }
 
+/** The giant headline. It sits behind the 3D canvas so the coaster passes in front of it. */
+export function WearableHeadline() {
+  return (
+    <div className="oz-wear-big" aria-label="it's wearable">
+      it’s wearable
+    </div>
+  );
+}
+
 /**
  * "So portable, it's wearable": a framed gallery that steps sideways as you scroll, ending on
  * the magazine cover. All motion comes from CSS variables set by the stage's scroll timeline.
@@ -50,9 +59,6 @@ export function WearableLayer() {
           ))}
         </span>
       </h4>
-      <div className="oz-wear-big" aria-label="it's wearable">
-        it’s wearable
-      </div>
 
       <Thumbs side="left" />
       <Thumbs side="right" />

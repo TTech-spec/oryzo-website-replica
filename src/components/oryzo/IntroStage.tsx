@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
+import { WearableHeadline, WearableLayer, WEARABLE_ITEMS } from "@/components/oryzo/WearableLayer";
 import { cubicIn, cubicOut, fit, type OryzoStage, type StageFrame } from "@/lib/oryzo3d/stage";
 
 const cubicInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -77,7 +77,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       set("--wear-shrink", fit(rw, 3.25, 4.75, 0, 1, cubicInOut));
       set("--frame-show", fit(rw, 0, 1, 0, 1));
       set("--frame-scale", fit(rw, 2.2, 3.4, 0, 1, cubicInOut));
-      set("--intro-show", fit(rw, 3.4, 4.3, 0, 1));
+      set("--intro-show", fit(rw, 4.7, 5.2, 0, 1));
       set("--thumbs", fit(rw, 4.6, 5.4, 0, 1) * fit(rw, 10.6, 11, 1, 0));
 
       // The gallery advances in steps: each image settles before the next one slides in.
@@ -159,6 +159,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
     <section className="oz-stage-track" id="intro" ref={rootRef} data-ready={ready}>
       <div className="oz-stage">
         <div className="oz-stage-bg" aria-hidden="true" />
+        <WearableHeadline />
         <canvas className="oz-stage-canvas" ref={canvasRef} aria-hidden="true" />
         <div className="oz-stage-glow" aria-hidden="true" />
 

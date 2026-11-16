@@ -9,7 +9,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Scroll-driven 3D intro**: the desk hero, the "Isn't just a coaster" flip and the "Powered by AI" hand, rendered with Three.js. The camera, coaster and hand follow the original site's baked animation tracks, so the motion matches frame for frame as you scroll.
 - **Lighting**: the coaster uses a port of the original shader, with environment-map lighting that cross-fades between the desk and the dark set, cork bump mapping and a ray-marched soft self-shadow.
 - **Interaction**: desk props fly in on load and scatter when the pointer brushes them; the hand's fingers curl when you hover them during the highlight.
-- **Wearable gallery**: "So portable, it's wearable" — the coaster turns over in its frame, the headline slides in and shrinks into the title, then a framed gallery steps sideways through eight scenes (two videos, the bikini prompt, the stunt warning) and ends on the RISE magazine cover, which opens up to fill the screen.
+- **Wearable gallery**: "So portable, it's wearable" — the coaster spins while a red foil wrapper closes around it, the wrapper tears open (a baked simulation played from a texture), and the coaster flies back to land on the jacket photo while the headline slides past behind it. Then a framed gallery steps sideways through eight scenes (two videos, the bikini prompt, the stunt warning) and ends on the RISE magazine cover, which opens up to fill the screen.
 - **Hero UI**: wordmark, intro copy, studio card, and a film button that opens the Vimeo player.
 - **Remaining sections** (the 3D desk scene the magazine zooms into, features, testimonials, social wall, product tiers, model paper, contact): content is in place with basic styling. Their 3D scenes and final layouts are still to come.
 
@@ -30,6 +30,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 | `src/lib/oryzo3d/stage.ts` | Three.js scene: desk layer, coaster, hand, lighting, scroll timeline |
 | `src/lib/oryzo3d/shaders.ts` | GLSL for the coaster, hand and desk props |
 | `src/lib/oryzo3d/deskProps.ts` | Desk props with pointer-driven spring physics |
+| `src/lib/oryzo3d/wrapper.ts` | Foil wrapper tear driven by a baked animation texture |
 | `src/lib/oryzo3d/handRig.ts` | Finger joints rebuilt from the baked skinning data |
 | `src/lib/oryzo3d/buf.ts` | Decoder for the `.buf` geometry and animation files |
 | `src/lib/oryzo.ts` | Tier, testimonial and campaign data |

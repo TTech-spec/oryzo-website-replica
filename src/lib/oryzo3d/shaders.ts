@@ -18,9 +18,14 @@ export const coasterVertex = /* glsl */ `
   varying vec3 vWorldPosition;
   varying vec3 vViewPosition;
   varying float vAo;
+  uniform float uZoom;
+  uniform vec2 uZoomCenter;
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * viewPosition;
+    gl_Position.xyz /= gl_Position.w;
+    gl_Position.xy = (gl_Position.xy - uZoomCenter) * uZoom + uZoomCenter;
+    gl_Position.xyz *= gl_Position.w;
     vViewNormal = normalMatrix * normal;
     vUv = uv * 3.0;
     vModelPosition = position;
@@ -51,6 +56,8 @@ export const coasterFragment = /* glsl */ `
   uniform float uExtraBump;
   uniform float uHeroRatio;
   uniform float uTime;
+  uniform float uWrapperRatio;
+  uniform float uWearableBlend;
 
   ${rainbow}
 
@@ -121,7 +128,7 @@ export const coasterFragment = /* glsl */ `
     float height = texture2D(uHeight, vUv).r;
     vec3 albedo = pow(texel, vec3(mix(2.0, 1.85, uHeroRatio)));
 
-    float bumpScale = 1.0 + 0.5 * uHighlight + uExtraBump;
+    float bumpScale = 1.0 + 0.5 * max(uHighlight, uWrapperRatio) + uExtraBump;
     vec2 dSTdx = dFdx(vUv);
     vec2 dSTdy = dFdy(vUv);
     vec2 dHdxy = (vec2(texture2D(uHeight, vUv + dSTdx).r, texture2D(uHeight, vUv + dSTdy).r) - height) * bumpScale;
@@ -138,7 +145,7 @@ export const coasterFragment = /* glsl */ `
     vec3 diffuseLight = envLight(N);
     vec3 specularLight = envLight(reflection);
 
-    float shadow = calcSoftshadow(vModelPosition, normalize(uLocalLight), 0.00001, 0.08, mix(1.0, 0.5, uHighlight));
+    float shadow = calcSoftshadow(vModelPosition, normalize(uLocalLight), 0.00001, 0.08, mix(1.0, 0.5, max(uHighlight, uWrapperRatio)));
 
     vec3 sheen = mix(vec3(1.0), 0.5 + 0.5 * rainbow(4.0 * (vModelPosition.x + vModelPosition.y) * 8.0 - uTime), uHighlight);
     vec3 color = sheen * (diffuseColor * diffuseLight + specularLight * (f0 * brdf.x + brdf.y));
@@ -153,6 +160,10 @@ export const coasterFragment = /* glsl */ `
     color *= shadow * shadow * (0.8 + 0.2 * vAo);
     color *= mix(1.0, 0.75, uHeroRatio);
     color += mix(0.05, 0.1, uHeroRatio) * albedo;
+    color += albedo * 0.4 * uWrapperRatio;
+    // On the jacket the coaster takes a flatter, photographic look to sit in the picture.
+    vec3 wearableColor = 4.0 * pow(texel, vec3(3.0 - 0.5 * vAo)) * (0.05 + 0.95 * smoothstep(0.0, 0.3, shadow * shadow));
+    color = mix(color, wearableColor, uWearableBlend);
 
     gl_FragColor = vec4(pow(aces(color), vec3(1.0 / 2.2)), 1.0);
   }
@@ -269,5 +280,207 @@ export const propFragment = /* glsl */ `
     vec3 color = mix(a, b, v - i);
     float alpha = texture2D(uAlpha, vUv).r;
     gl_FragColor = vec4(mix(color, vec3(0.0), uShadow), alpha * uOpacity * mix(1.0, 0.35, uShadow));
+  }
+`;
+
+// ---------- Wearable intro: the foil wrapper the coaster bursts out of ----------
+
+// The tear is a baked simulation: 1024 "bones" x 32 frames stored in a texture, two texels per
+// bone for position and two for orientation (16-bit values split across texel pairs).
+export const wrapperVertex = /* glsl */ `
+  attribute float side;
+  attribute vec4 boneIndices;
+  attribute vec4 boneWeights;
+  uniform sampler2D uAnimTexture;
+  uniform vec2 uAnimTexelSize;
+  uniform vec3 uAnimBlend;
+  uniform float uIsBack;
+  uniform float uOffset;
+  uniform vec3 uPMin;
+  uniform vec3 uPMax;
+  uniform vec4 uOrientMin;
+  uniform vec4 uOrientMax;
+  uniform vec4 uUvMap;
+  varying vec3 vViewPosition;
+  varying vec3 vViewNormal;
+  varying vec3 vWorldPosition;
+  varying vec2 vUv;
+
+  const vec2 unpackFactors = vec2(1.0 / 256.0, 255.0 / 256.0);
+  vec3 qrotate(vec4 q, vec3 v) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+  }
+  void computeSkin(inout vec3 p, inout vec3 n, vec2 xy, float w) {
+    vec3 p0 = texture2D(uAnimTexture, xy * uAnimTexelSize).xyz;
+    vec3 p1 = texture2D(uAnimTexture, (xy + vec2(1.0, 0.0)) * uAnimTexelSize).xyz;
+    vec4 o0 = texture2D(uAnimTexture, (xy + vec2(0.0, 1.0)) * uAnimTexelSize);
+    vec4 o1 = texture2D(uAnimTexture, (xy + 1.0) * uAnimTexelSize);
+    vec3 bp = mix(uPMin, uPMax, p0 * unpackFactors.x + p1 * unpackFactors.y);
+    vec4 bo = mix(uOrientMin, uOrientMax, o0 * unpackFactors.x + o1 * unpackFactors.y);
+    p += (qrotate(bo, position) + bp) * w;
+    n += qrotate(bo, normal) * w;
+  }
+  void skinAt(float row, out vec3 pos, out vec3 nor) {
+    pos = vec3(0.0);
+    nor = vec3(0.0);
+    vec2 xy = vec2(0.5, row + 0.5);
+    computeSkin(pos, nor, xy + vec2(boneIndices.x * 2.0, 0.0), boneWeights.x);
+    computeSkin(pos, nor, xy + vec2(boneIndices.y * 2.0, 0.0), boneWeights.y);
+    computeSkin(pos, nor, xy + vec2(boneIndices.z * 2.0, 0.0), boneWeights.z);
+    computeSkin(pos, nor, xy + vec2(boneIndices.w * 2.0, 0.0), boneWeights.w);
+    nor = normalize(nor);
+  }
+  void main() {
+    vec3 posFrom; vec3 norFrom; vec3 posTo; vec3 norTo;
+    skinAt(uAnimBlend.x, posFrom, norFrom);
+    skinAt(uAnimBlend.y, posTo, norTo);
+    vec3 pos = mix(posFrom, posTo, uAnimBlend.z);
+    pos.x += side * uOffset * 0.5;
+    pos.z += uOffset * 2.0;
+    vec3 nor = normalize(mix(norFrom, norTo, uAnimBlend.z));
+    vec4 viewPosition = modelViewMatrix * vec4(pos, 1.0);
+    vViewPosition = -viewPosition.xyz;
+    vViewNormal = normalMatrix * nor;
+    gl_Position = projectionMatrix * viewPosition;
+    gl_Position.z += (uIsBack - 0.5) * 0.2 * gl_Position.w;
+    vUv = (position.xy - uUvMap.xy) / uUvMap.zw;
+    vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
+  }
+`;
+
+// Crinkles come from "harmonics" textures: per-texel cosine waves whose phase advances with the
+// tear, so the foil's creases shift as it deforms. Define IS_BACK for the printed inner side.
+export const wrapperFragment = /* glsl */ `
+  uniform float uOpacity;
+  uniform float uHarmonicsTime;
+  uniform sampler2D uBase;
+  uniform sampler2D uHarmonics0;
+  uniform sampler2D uHarmonics1;
+  uniform float uHarmonicsStrength;
+  uniform sampler2D uNormalMap;
+  uniform sampler2D uEnv;
+  uniform sampler2D uPattern;
+  uniform sampler2D uSpecEnv;
+  uniform vec3 uColor;
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vViewPosition;
+  varying vec3 vViewNormal;
+
+  const float TAU = 6.283185307179586;
+  float calcHarmonic(float amp, float pha, float freq, float t) {
+    return cos(t * freq + (pha - 0.5) * TAU) * amp;
+  }
+  float pairHarmonics(sampler2D tex, vec2 uv, vec2 freq, float t, float s) {
+    vec4 h = texture2D(tex, uv);
+    return (calcHarmonic(h.r, h.g, freq.x, t) + calcHarmonic(h.b, h.a, freq.y, t)) * s;
+  }
+  float getAO(vec2 uv) {
+    vec4 r = texture2D(uBase, uv);
+    return r.r + calcHarmonic(r.g, r.b, 1.0, uHarmonicsTime) * uHarmonicsStrength
+      + pairHarmonics(uHarmonics0, uv, vec2(2.0, 3.0), uHarmonicsTime, uHarmonicsStrength)
+      + pairHarmonics(uHarmonics1, uv, vec2(4.0, 5.0), uHarmonicsTime, uHarmonicsStrength);
+  }
+  mat3 getTangentFrame(vec3 eye_pos, vec3 surf_norm, vec2 uv) {
+    vec3 q0 = dFdx(eye_pos.xyz);
+    vec3 q1 = dFdy(eye_pos.xyz);
+    vec2 st0 = dFdx(uv.st);
+    vec2 st1 = dFdy(uv.st);
+    vec3 N = surf_norm;
+    vec3 q1perp = cross(q1, N);
+    vec3 q0perp = cross(N, q0);
+    vec3 T = q1perp * st0.x + q0perp * st1.x;
+    vec3 B = q1perp * st0.y + q0perp * st1.y;
+    float det = max(dot(T, T), dot(B, B));
+    float scale = (det == 0.0) ? 0.0 : inversesqrt(det);
+    return mat3(T * scale, B * scale, N);
+  }
+  vec3 perturbNormalArb(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy) {
+    vec3 vSigmaX = normalize(dFdx(surf_pos.xyz));
+    vec3 vSigmaY = normalize(dFdy(surf_pos.xyz));
+    vec3 R1 = cross(vSigmaY, surf_norm);
+    vec3 R2 = cross(surf_norm, vSigmaX);
+    float fDet = dot(vSigmaX, R1);
+    vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2);
+    return normalize(abs(fDet) * surf_norm - vGrad);
+  }
+  vec2 cart2Polar(vec3 n) {
+    return vec2(atan(n.z, n.x) * 0.15915494 + 0.5, asin(clamp(n.y, -1.0, 1.0)) * 0.31830988618 + 0.5);
+  }
+  vec3 rgbm(vec4 c) {
+    return c.rgb * c.a * 20.0;
+  }
+  vec3 RRTAndODTFit(vec3 v) {
+    vec3 a = v * (v + 0.0245786) - 0.000090537;
+    vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+    return a / b;
+  }
+  vec3 aces(vec3 color) {
+    const mat3 ACESInputMat = mat3(vec3(0.59719, 0.07600, 0.02840), vec3(0.35458, 0.90834, 0.13383), vec3(0.04823, 0.01566, 0.83777));
+    const mat3 ACESOutputMat = mat3(vec3(1.60475, -0.10208, -0.00327), vec3(-0.53108, 1.10813, -0.07276), vec3(-0.07367, -0.00605, 1.07602));
+    return clamp(ACESOutputMat * RRTAndODTFit(ACESInputMat * color), 0.0, 1.0);
+  }
+
+  void main() {
+    float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
+    float normalMask = max(smoothstep(0.792, 0.793, 2.0 * abs(vUv.x - 0.5)), smoothstep(0.792, 0.793, 2.0 * abs(vUv.y - 0.5)));
+    vec3 viewNormal = normalize(vViewNormal) * faceDirection;
+    vec2 normalUv = 90.0 * vUv;
+    mat3 tbn = getTangentFrame(-vViewPosition, viewNormal, normalUv);
+    vec3 normalTexture = texture2D(uNormalMap, normalUv).xyz * 2.0 - 1.0;
+    normalTexture.xy *= -0.25 * normalMask;
+    vec3 perturbedNormal = normalize(tbn * normalize(normalTexture));
+
+    float ao = getAO(vUv);
+    vec2 dSTdx = dFdx(vUv) * 2.0;
+    vec2 dSTdy = dFdy(vUv) * 2.0;
+    vec2 dHdxy = vec2(getAO(vUv + dSTdx), getAO(vUv + dSTdy)) - ao;
+    perturbedNormal = perturbNormalArb(-vViewPosition, perturbedNormal, dHdxy);
+
+    vec3 N = normalize((vec4(perturbedNormal, 0.0) * viewMatrix).xyz);
+    vec3 V = normalize(cameraPosition - vWorldPosition);
+    vec3 reflection = normalize(reflect(-V, N));
+    #ifdef IS_BACK
+      vec3 albedo = uColor;
+      vec2 patternUv = mat2(1.0, -2.0, 1.0, 2.0) * sqrt(2.0) * vUv * 0.86;
+      float pattern = texture2D(uPattern, patternUv).r;
+      albedo = mix(albedo, vec3(1.0), pattern);
+      vec3 color = 0.5 * albedo;
+      color *= ao;
+      color = aces(clamp(color, 0.0, 1.0));
+      float alpha = uOpacity;
+    #else
+      // Clear film over the printed back: it mostly adds crease shading and sharp reflections,
+      // so it is blended in only where the reflection is bright.
+      vec3 diffuseLight = rgbm(texture2D(uEnv, cart2Polar(N)));
+      float reverseAo = pow(1.0 - ao, 3.0);
+      float blurAmount = 1.0 - abs(perturbedNormal.z);
+      vec3 specularLight = texture2D(uSpecEnv, cart2Polar(reflection)).rgb * 20.0;
+      vec3 behind = 0.5 * uColor;
+      vec3 indirect = behind * uColor * 0.96 * diffuseLight + specularLight * 0.04;
+      float d = clamp(dot(viewNormal, vec3(0.5773)), 0.0, 1.0);
+      vec3 color = behind + reverseAo * d * (0.1 + uColor) + indirect;
+      color *= mix(1.0, 0.6, blurAmount);
+      color += 0.5 * indirect * smoothstep(0.75, 0.8, d);
+      color = clamp(color, 0.0, 1.0);
+      float alpha = uOpacity * clamp(specularLight.r, 0.0, 1.0);
+    #endif
+    gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), alpha);
+  }
+`;
+
+// ---------- Wearable intro: the jacket photo the coaster lands on ----------
+
+export const jacketFragment = /* glsl */ `
+  uniform sampler2D uTexture;
+  uniform float uShow;
+  varying vec2 vUv;
+  void main() {
+    // Reveal opens from the coaster's landing spot outwards, soft at the edge.
+    vec2 centre = vec2(0.5, 0.643);
+    float dist = length((vUv - centre) * vec2(850.0, 1100.0)) / 1100.0;
+    float reveal = smoothstep(uShow * 1.4, uShow * 1.4 - 0.25, dist);
+    vec3 color = texture2D(uTexture, vUv).rgb;
+    gl_FragColor = vec4(color, reveal * smoothstep(0.0, 0.3, uShow));
   }
 `;

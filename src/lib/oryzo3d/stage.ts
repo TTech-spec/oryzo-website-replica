@@ -3,7 +3,16 @@ import * as THREE from "three";
 import { floatAttribute, loadBuf, type BufData } from "./buf";
 import { DeskProps, PLANE_HEIGHT, PLANE_WIDTH } from "./deskProps";
 import { HandRig } from "./handRig";
-import { coasterFragment, coasterVertex, HAND_BONES, handFragment, handVertex } from "./shaders";
+import {
+  coasterFragment,
+  coasterVertex,
+  HAND_BONES,
+  handFragment,
+  handVertex,
+  jacketFragment,
+  propVertex,
+} from "./shaders";
+import { Wrapper } from "./wrapper";
 
 const MODEL_PATH = "/oryzo/models/";
 const TEXTURE_PATH = "/oryzo/textures/";
@@ -16,7 +25,17 @@ const FOV = (2 * Math.atan((VIEW_HEIGHT * 41.4) / VIEW_WIDTH / 2 / 50) * 180) / 
 const HAND_FRAME_START = 71;
 
 const HERO_LIGHT = new THREE.Vector3(0.346682, 1.00875, -0.368255);
-const X_AXIS = new THREE.Vector3(1, 0, 0);
+const WEARABLE_LIGHT = new THREE.Vector3(-10, -2, 6);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+// The wrapper model is authored lying flat; these stand it up around the coaster.
+const WRAPPER_ROT_X = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(1, 0, 0),
+  -Math.PI / 2,
+);
+const WRAPPER_ROT_Z = new THREE.Quaternion().setFromAxisAngle(Z_AXIS, Math.PI);
+const ZERO = new THREE.Vector3();
+const ONE = new THREE.Vector3(1, 1, 1);
 const HAND_LIGHT = new THREE.Vector3(0.0237565, 0.77265, 0.435661);
 
 export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -77,7 +96,7 @@ const floatTexture = (data: Float32Array) =>
 
 export class OryzoStage {
   private renderer: THREE.WebGLRenderer;
-  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.01, 20);
+  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 10);
   private camera2D = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10);
   private scene = new THREE.Scene();
   private scene2D = new THREE.Scene();
@@ -96,7 +115,19 @@ export class OryzoStage {
     uExtraBump: { value: 0 },
     uHeroRatio: { value: 1 },
     uTime: { value: 0 },
+    uZoom: { value: 1 },
+    uZoomCenter: { value: new THREE.Vector2() },
+    uWrapperRatio: { value: 0 },
+    uWearableBlend: { value: 0 },
   };
+  /** Child of the coaster that carries its flight onto the jacket. */
+  private coasterInner = new THREE.Object3D();
+  private coasterFlight?: FrameAnimation;
+  private flightDummy = new THREE.Object3D();
+  private wrapperPivot = new THREE.Object3D();
+  private wrapper?: Wrapper;
+  private jacket?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private jacketShow = { value: 0 };
 
   private cameraAnimation?: FrameAnimation;
   private coasterAnimation?: FrameAnimation;
@@ -198,6 +229,25 @@ export class OryzoStage {
       return t;
     };
 
+    // Textures that carry data rather than colour (RGBM light maps, baked animation, harmonics)
+    // use their alpha channel as a fourth value. Decoding through ImageBitmap with premultiply
+    // off keeps the other channels intact where alpha is low; the plain image path does not.
+    const bitmapLoader = new THREE.ImageBitmapLoader();
+    bitmapLoader.setOptions({
+      premultiplyAlpha: "none",
+      colorSpaceConversion: "none",
+      imageOrientation: "flipY",
+    });
+    const dataTex = (path: string) => {
+      const t = new THREE.Texture();
+      t.flipY = false;
+      bitmapLoader.load(TEXTURE_PATH + path, (bitmap) => {
+        t.image = bitmap;
+        t.needsUpdate = true;
+      });
+      return t;
+    };
+
     // Desk image, coaster shadow and props (2D layer).
     this.baseMaterial.map = tex("hero/BASE.webp", true);
     const base = new THREE.Mesh(
@@ -253,7 +303,7 @@ export class OryzoStage {
       t.anisotropy = 8;
     }
     const env = (path: string) => {
-      const t = tex(path);
+      const t = dataTex(path);
       t.wrapS = THREE.RepeatWrapping;
       t.minFilter = THREE.LinearFilter;
       t.generateMipmaps = false;
@@ -265,7 +315,8 @@ export class OryzoStage {
     u.uEnv1.value = env("hero/env_hero.webp");
     u.uEnv2.value = env("hero/env_hand.webp");
     u.uBrdf.value = tex("brdf.png");
-    this.coaster.add(
+    this.coaster.add(this.coasterInner);
+    this.coasterInner.add(
       new THREE.Mesh(
         toGeometry(coasterData),
         new THREE.ShaderMaterial({
@@ -297,6 +348,31 @@ export class OryzoStage {
 
     this.deskProps.startIntro();
     this.onReady?.();
+
+    // Wearable intro assets load after the first paint; they are not needed until well down the page.
+    const jacketTexture = tex("wearable/1.webp");
+    this.jacket = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.ShaderMaterial({
+        uniforms: { uTexture: { value: jacketTexture }, uShow: this.jacketShow },
+        vertexShader: propVertex,
+        fragmentShader: jacketFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    this.jacket.visible = false;
+    this.scene2D.add(this.jacket);
+    this.coasterFlight = new FrameAnimation(
+      await loadBuf(MODEL_PATH + "wearable/coaster_first.buf"),
+    );
+    const wrapper = new Wrapper(MODEL_PATH, dataTex, u.uEnv2);
+    await wrapper.load();
+    if (this.disposed) return;
+    this.wrapperPivot.add(wrapper.group);
+    this.scene.add(this.wrapperPivot);
+    this.wrapper = wrapper;
   }
 
   private resize = () => {
@@ -385,6 +461,71 @@ export class OryzoStage {
     this.renderer.getDrawingBufferSize(u.uResolution.value);
   }
 
+  /**
+   * Wearable intro: the coaster spins while a foil wrapper closes around it, the wrapper tears
+   * open, and the coaster flies back to land on the jacket photo.
+   * @param rw viewport heights since the wearable section started
+   */
+  private updateWearable(rw: number) {
+    // The section's own animation clock: 0-1 spin, 1-2 tear, 2-3 land on the jacket.
+    let t = fit(rw, 0.5, 1.5, 0, 1);
+    t = fit(rw, 1.5, 3, t, 2);
+    t = fit(rw, 3, 5.25, t, 3);
+    const turn = fit(t, 0, 1, 0, 1);
+    const tear = fit(t, 1, 2, 0, 1);
+
+    this.coasterInner.position.set(0, 0, 0);
+    this.coasterInner.quaternion.identity();
+    this.coasterInner.scale.set(1, 1, 1);
+    let zoom = 1;
+    if (t > 0) {
+      const pivot = this.wrapperPivot;
+      pivot.position.copy(this.coaster.position);
+      pivot.quaternion
+        .copy(this.coaster.quaternion)
+        .premultiply(WRAPPER_ROT_Z)
+        .premultiply(WRAPPER_ROT_X)
+        .multiply(this.q0.setFromAxisAngle(Y_AXIS, Math.PI * 2 * turn));
+      this.coaster.quaternion.multiply(this.q0.setFromAxisAngle(Z_AXIS, Math.PI * 2 * turn));
+      this.coasterInner.position.y -= fit(turn, 0, 0.15, 0, 0.0086);
+
+      if (t >= 1.55 && this.coasterFlight) {
+        // The flight path is authored in camera space: conjugate it by the camera's rotation.
+        const dummy = this.flightDummy;
+        this.coasterFlight.apply(
+          dummy,
+          fit(t, 1.55, 2.6, 0, 1) * (this.coasterFlight.frameCount - 1),
+        );
+        dummy.updateMatrix();
+        this.m0.compose(ZERO, this.camera.quaternion, ONE);
+        dummy.matrix.premultiply(this.m0).multiply(this.m0.invert());
+        dummy.matrix.decompose(
+          this.coasterInner.position,
+          this.coasterInner.quaternion,
+          this.coasterInner.scale,
+        );
+      }
+      zoom = fit(t, 1.55, 2, 1, 1.5);
+      zoom = fit(t, 2, 2.8, zoom, 1, cubicOut);
+    }
+    if (this.wrapper) {
+      this.wrapper.opacity = t > 0 ? fit(turn, 0.75, 0.85, 0, tear < 1 ? 1 : 0) : 0;
+      this.wrapper.tearRatio = tear;
+      this.wrapper.update();
+    }
+    if (this.jacket) {
+      this.jacket.visible = t > 2;
+      this.jacketShow.value = fit(t, 2, 2.8, 0, 1);
+      const height = this.height * 0.8;
+      this.jacket.scale.set((height * 85) / 110, height, 1);
+    }
+    return {
+      zoom,
+      wrapperLight: fit(t, 0.3, 1, 0, 1) * fit(t, 1, 2, 1, 0),
+      blend: fit(t, 2, 2.6, 0, 1),
+    };
+  }
+
   private tick = (time: number) => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.tick);
@@ -406,7 +547,7 @@ export class OryzoStage {
     if (!this.cameraAnimation || !this.coasterAnimation) return;
     // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
     const rw = r - 8;
-    if (rw > 4.4) {
+    if (rw > 5.3) {
       if (!this.idle) {
         this.renderer.clear();
         this.idle = true;
@@ -419,15 +560,7 @@ export class OryzoStage {
     const frame = animationRatio * (this.cameraAnimation.frameCount - 1);
     this.cameraAnimation.apply(this.camera, frame);
     this.coasterAnimation.apply(this.coaster, frame);
-    // In the wearable intro the coaster turns over once inside its frame, then settles back
-    // as the photo fades in over it.
-    if (rw > 0) {
-      const spin = fit(rw, 1, 2.8, 0, 1, (t) =>
-        t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2,
-      );
-      this.coaster.quaternion.multiply(this.q0.setFromAxisAngle(X_AXIS, spin * Math.PI * 2));
-    }
-    this.coaster.scale.setScalar(fit(rw, 3.2, 4.3, 1, 0.55));
+    const wearable = this.updateWearable(rw);
     this.camera.updateMatrixWorld();
     this.coaster.updateMatrixWorld();
 
@@ -438,7 +571,13 @@ export class OryzoStage {
     const u = this.coasterUniforms;
     u.uLocalLight.value
       .copy(this.lightPosition)
-      .applyMatrix4(this.m0.copy(this.coaster.matrixWorld).invert());
+      .lerp(WEARABLE_LIGHT, wearable.blend)
+      .applyMatrix4(this.m0.copy(this.coasterInner.matrixWorld).invert());
+    u.uWrapperRatio.value = wearable.wrapperLight;
+    u.uWearableBlend.value = wearable.blend;
+    u.uZoom.value = wearable.zoom;
+    this.v0.setFromMatrixPosition(this.coasterInner.matrixWorld).project(this.camera);
+    u.uZoomCenter.value.set(this.v0.x, this.v0.y);
     u.uEnvBlend.value = lightBlend;
     u.uHeroRatio.value = heroActive;
     u.uHighlight.value = highlight;

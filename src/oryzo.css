@@ -509,7 +509,8 @@
   opacity: calc(1 - var(--wear-hide));
 }
 
-.oz-stage-track:not([data-wear="on"]) .oz-wear {
+.oz-stage-track:not([data-wear="on"]) .oz-wear,
+.oz-stage-track:not([data-wear="on"]) .oz-wear-big {
   visibility: hidden;
 }
 
@@ -549,7 +550,7 @@
   letter-spacing: -0.03em;
   white-space: nowrap;
   transform-origin: 0 50%;
-  opacity: var(--wear-big-on);
+  opacity: calc(var(--wear-big-on) * (1 - var(--wear-hide)));
   text-shadow: 0 0 calc(2vw * (1 - var(--wear-shrink))) rgba(255, 237, 215, 0.55);
   transform: translate(
       calc(var(--wear-big-x) * 1vw),
