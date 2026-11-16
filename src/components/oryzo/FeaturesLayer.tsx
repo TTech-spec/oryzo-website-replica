@@ -1,3 +1,5 @@
+import { FEATURE_EQUATIONS, FEATURE_ICONS } from "@/components/oryzo/featureArt";
+
 export const FEATURES = [
   {
     id: "elevate",
@@ -5,7 +7,6 @@ export const FEATURES = [
     desc: "With a precision-engineered lift (exactly one coaster thick), Oryzo doesn’t just hold your mug - it elevates it. Literally. Above every boring surface you’ve ever known.",
     title: "Elevate your coffee experience",
     footnote: ["Constant lift via geometry"],
-    equation: "Δh ≈ t",
   },
   {
     id: "temperature",
@@ -13,7 +14,6 @@ export const FEATURES = [
     desc: "From piping-hot mugs to ice-cold drinks - Oryzo stays perfectly stable. Your coffee table already tapped out three sips ago.",
     title: "Thermodynamic stability",
     footnote: ["THERMAL DIFFUSION MODEL (TDM)", "A visualization, not a warranty"],
-    equation: "∂T/∂t = α∇²T",
   },
   {
     id: "curve",
@@ -24,7 +24,6 @@ export const FEATURES = [
       "Circularity (circle = 1.0)",
       "RoPE: Roundness Optimization & Perimeter Engineering",
     ],
-    equation: "C = 4πA / P²",
   },
 ] as const;
 
@@ -37,11 +36,15 @@ export function FeaturesLayer() {
     <div className="oz-feat">
       <div className="oz-feat-panel" aria-hidden="true" />
       <div className="oz-feat-items">
-        {FEATURES.map((feature) => (
+        {FEATURES.map((feature, index) => (
           <article className="oz-feat-item" key={feature.id} data-id={feature.id}>
             <div>
               <div className="oz-feat-top">
-                <span className="oz-feat-icon" aria-hidden="true" />
+                <span
+                  className="oz-feat-icon"
+                  aria-hidden="true"
+                  dangerouslySetInnerHTML={{ __html: FEATURE_ICONS[index] ?? "" }}
+                />
                 <p className="oz-feat-tagline">{feature.tagline}</p>
               </div>
               <p className="oz-feat-desc">{feature.desc}</p>
@@ -53,15 +56,36 @@ export function FeaturesLayer() {
           </article>
         ))}
       </div>
+      <div className="oz-feat-slider" aria-hidden="true">
+        <div className="oz-feat-slider-text">
+          <span>
+            Creative
+            <br />T = 10
+          </span>
+          <span>
+            Balanced
+            <br />T = 1
+          </span>
+          <span>
+            Deterministic
+            <br />T = 0.1
+          </span>
+        </div>
+        <div className="oz-feat-slider-bar" />
+      </div>
       <div className="oz-feat-extras">
-        {FEATURES.map((feature) => (
+        {FEATURES.map((feature, index) => (
           <div className="oz-feat-extra" key={feature.id}>
             <p>
               {feature.footnote.map((line) => (
                 <span key={line}>{line}</span>
               ))}
             </p>
-            <strong>{feature.equation}</strong>
+            <span
+              className="oz-feat-equation"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: FEATURE_EQUATIONS[index] ?? "" }}
+            />
           </div>
         ))}
       </div>

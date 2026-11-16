@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { FrameAnimation, fovFromFocal, toGeometry } from "./anim";
 import { loadBuf } from "./buf";
+import { goboChunk, thermalChunk } from "./shaders";
 import { Splats } from "./splats";
 
 // The desk set the magazine cover opens onto: desk, pegboard and wall as baked-texture meshes,
@@ -17,6 +18,7 @@ const deskVertex = /* glsl */ `
   #ifdef IS_DESK
     attribute float type;
     varying float vShadow;
+    varying float vType;
   #endif
   void main() {
     vec3 pos = position;
@@ -35,6 +37,7 @@ const deskVertex = /* glsl */ `
       vec3 worldNormal = normalize(mat3(modelMatrix) * normal);
       vShadow = min(1.0, abs(mod(floor(type + 0.5), 2.0) - 1.0)) * 0.95 + 0.05;
       vShadow *= mix(max(0.0, dot(worldNormal.xz, normalize(vec2(1.0, 0.2)))) * 0.9 + 0.1, 1.0, min(1.0, abs(type - 3.0)));
+      vType = type;
     #endif
   }
 `;
@@ -45,7 +48,12 @@ const deskFragment = /* glsl */ `
   varying vec3 vWorldPosition;
   uniform sampler2D uTexture;
   uniform vec3 uLightPosition;
+  uniform float uThermalRatio;
+  uniform vec2 uBufferSize;
+  ${goboChunk}
   #ifdef IS_DESK
+    uniform sampler2D uReflection;
+    varying float vType;
     uniform sampler2D uHdTexture;
     uniform float uHdShift;
     uniform mat4 uCoffeeInv;
@@ -108,9 +116,14 @@ const deskFragment = /* glsl */ `
       color = mix(color, pow(texture2D(uHdTexture, hdUv).rgb, vec3(2.2)), hdBlend);
       color *= vShadow;
       float shadow = calcSoftshadow(vWorldPosition + vec3(0.0, -0.003, 0.0), normalize(uLightPosition - vWorldPosition), 0.005, 1.0, 0.03);
-      shadow = clamp(shadow, 0.0, 1.0);
+      shadow = clamp(shadow + uThermalRatio * 0.5, 0.0, 1.0);
       color *= 0.05 + 0.95 * shadow * shadow;
+      // Faint mirror image of the props in the varnish.
+      vec3 reflection = pow(texture2D(uReflection, gl_FragCoord.xy / uBufferSize).rgb, vec3(2.2));
+      color += reflection * (vType > 1.5 ? 0.65 : 1.0) * (shadow * 0.8 + 0.2);
     #endif
+    float gobo = clamp(sampleGobo(vWorldPosition) + uThermalRatio * 0.5, 0.0, 1.0);
+    color *= 0.35 + 0.65 * mix(vec3(0.1, 0.05, 0.0), vec3(1.0), gobo);
     gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);
   }
 `;
@@ -150,6 +163,7 @@ const cupFragment = /* glsl */ `
   uniform sampler2D uBase;
   uniform sampler2D uLabel;
   uniform vec3 uPosition;
+  ${thermalChunk}
   float linearstep(float a, float b, float v) { return clamp((v - a) / (b - a), 0.0, 1.0); }
   void main() {
     vec3 color = pow(texture2D(uBase, vUv).rgb, vec3(2.2));
@@ -162,8 +176,16 @@ const cupFragment = /* glsl */ `
     #endif
     #ifdef IS_LABEL
       vec3 labelColor = pow(texture2D(uLabel, vLabelUv).rrr, vec3(2.2)) * vec3(1.0, 0.9, 0.85);
+    #endif
+    // The hot drink glows on the heat camera, hotter higher up the cup.
+    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float thermalLevel = 0.65 + 0.35 * smoothstep(0.1, 0.3, vUv.x);
+    vec3 thermal = texture2D(uThermalTexture, vec2(thermalLevel * (0.85 + 0.15 * luma), 0.5)).rgb;
+    #ifdef IS_LABEL
+      thermal = texture2D(uThermalTexture, vec2(thermalLevel * 0.72 * (1.0 - 0.15 * labelColor.r), 0.5)).rgb;
       color *= mix(labelColor, vec3(1.0), color.r * color.r * 0.07);
     #endif
+    color = mix(color, pow(0.1 + thermal, vec3(2.2)), thermalFade());
     gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);
   }
 `;
@@ -172,6 +194,7 @@ const coverFragment = /* glsl */ `
   varying float vAo;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPosition;
+  ${thermalChunk}
   void main() {
     vec3 N = normalize(vWorldNormal);
     vec3 V = normalize(cameraPosition - vWorldPosition);
@@ -181,7 +204,82 @@ const coverFragment = /* glsl */ `
     float fresnel = pow(1.0 - clamp(abs(dot(N, V)), 0.0, 1.0), 4.0);
     vec3 color = vec3(0.012) + vec3(0.02) * NdL + vec3(0.55, 0.5, 0.42) * spec + vec3(0.12, 0.1, 0.08) * fresnel;
     color *= 0.35 + 0.65 * vAo;
+    vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(0.92 * (0.8 + 0.2 * vAo), 0.5)).rgb, vec3(2.2));
+    color = mix(color, thermal, thermalFade());
     gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);
+  }
+`;
+
+const quadVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+// The window-light texture stores a base shadow plus sway amounts and phases per texel, so the
+// leaves' shadow moves without any simulation.
+const goboFragment = /* glsl */ `
+  uniform sampler2D uTexture;
+  uniform float uTime;
+  uniform float uStrength;
+  varying vec2 vUv;
+  void main() {
+    vec4 params = texture2D(uTexture, vUv);
+    float amp1 = params.g * uStrength;
+    float phase1 = (params.b - 0.5) * 6.283185;
+    float amp23 = params.a * uStrength;
+    vec3 waves = sin(uTime * vec3(1.0, 2.0, 3.0) + phase1 * vec3(1.0, 2.0, 0.5));
+    float motion = amp1 * waves.x + amp23 * 0.5 * waves.y + amp23 * 0.3 * waves.z;
+    gl_FragColor = vec4(vec3(clamp(params.r + motion, 0.0, 1.0)), 1.0);
+  }
+`;
+
+const thermalFragment = /* glsl */ `
+  uniform sampler2D uScene;
+  ${thermalChunk}
+  void main() {
+    vec3 scene = texture2D(uScene, gl_FragCoord.xy / uResolution).rgb;
+    float luma = dot(scene, vec3(0.299, 0.587, 0.114));
+    luma = 0.8 * smoothstep(0.0, 1.5, luma);
+    vec3 thermal = 0.1 + pow(texture2D(uThermalTexture, vec2(luma, 0.5)).rgb, vec3(2.2));
+    gl_FragColor = vec4(mix(scene, thermal, thermalFade()), 1.0);
+  }
+`;
+
+const smokeVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+// Steam: a baked wisp whose density is rebuilt each frame from stored cosine harmonics.
+const smokeFragment = /* glsl */ `
+  uniform sampler2D uBase;
+  uniform sampler2D uHarmonics0;
+  uniform sampler2D uHarmonics1;
+  uniform float uTime;
+  varying vec2 vUv;
+  ${thermalChunk}
+  const float TAU = 6.283185307179586;
+  const float STRENGTH = 0.322202;
+  float harmonic(float amp, float pha, float freq) {
+    return cos(uTime * freq + (pha - 0.5) * TAU) * amp;
+  }
+  void main() {
+    vec4 base = texture2D(uBase, vUv);
+    vec4 h0 = texture2D(uHarmonics0, vUv);
+    vec4 h1 = texture2D(uHarmonics1, vUv);
+    float c = base.r + harmonic(base.g, base.b, 1.0) * STRENGTH
+      + (harmonic(h0.r, h0.g, 2.0) + harmonic(h0.b, h0.a, 3.0)) * STRENGTH
+      + (harmonic(h1.r, h1.g, 4.0) + harmonic(h1.b, h1.a, 5.0)) * STRENGTH;
+    float s = pow(clamp(c, 0.0, 1.0), 1.0 / 2.2);
+    vec4 color = vec4(vec3(s * 0.3 + 0.7), s * 0.15);
+    vec3 thermal = pow(texture2D(uThermalTexture, vec2(s, 0.5)).rgb * 0.6 + 0.4, vec3(2.2));
+    gl_FragColor = mix(color, vec4(thermal, s), thermalFade());
   }
 `;
 
@@ -193,6 +291,28 @@ export class TableScene {
   /** Light the coaster and desk shadows use on this set. */
   readonly lightPosition = new THREE.Vector3(0.346682, 1.00875, 0.168255);
   ready = false;
+  /** Desk, wall, pegboard and splat props: everything the heat camera re-colours as a backdrop. */
+  readonly surfaces = new THREE.Group();
+  /** 0..1 strength of the heat-camera look, and its wipe position (0 -> 1 in, 1 -> 2 out). */
+  thermalRatio = 0;
+  thermalAnimation = 0;
+
+  private reflectionSplats = new Splats();
+  private reflectionTarget = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
+  private sceneTarget = new THREE.WebGLRenderTarget(1, 1);
+  private goboTarget = new THREE.WebGLRenderTarget(512, 512, { depthBuffer: false });
+  private goboScene = new THREE.Scene();
+  private goboUniforms = {
+    uTexture: { value: null as THREE.Texture | null },
+    uTime: { value: 0 },
+    uStrength: { value: 0.4630597 },
+  };
+  private thermalScene = new THREE.Scene();
+  private quadCamera = new THREE.Camera();
+  private smoke?: THREE.Mesh;
+  private smokeTime = { value: 0 };
+  private bufferSize = new THREE.Vector2(1, 1);
+  private q = new THREE.Quaternion();
 
   private cameraAnimation?: FrameAnimation;
   private coasterAnimation?: FrameAnimation;
@@ -204,11 +324,66 @@ export class TableScene {
     uCoffeeOn: { value: 1 },
     uHdShift: { value: 0 },
     uPosition: { value: new THREE.Vector3() },
+    uGobo: { value: this.goboTarget.texture as THREE.Texture },
+    uGoboMatrix: { value: new THREE.Matrix4() },
+    uGoboOpacity: { value: 1 },
+    uReflection: { value: this.reflectionTarget.texture as THREE.Texture },
+    uBufferSize: { value: this.bufferSize },
+    uResolution: { value: this.bufferSize },
+    uThermalTexture: { value: null as THREE.Texture | null },
+    uThermalAnimation: { value: 0 },
+    uThermalRatio: { value: 0 },
   };
+  /** Window-light and heat-camera uniforms, for materials outside this module (the coaster). */
+  get lightUniforms() {
+    const u = this.uniforms;
+    return {
+      uGobo: u.uGobo,
+      uGoboMatrix: u.uGoboMatrix,
+      uGoboOpacity: u.uGoboOpacity,
+      uThermalTexture: u.uThermalTexture,
+      uThermalAnimation: u.uThermalAnimation,
+      uResolution: u.uResolution,
+    };
+  }
 
   constructor() {
     this.group.visible = false;
-    this.group.add(this.coffee);
+    this.group.add(this.surfaces, this.coffee);
+
+    // The lamp behind the leaves: a fixed 60 degree projector aimed across the desk.
+    const lamp = new THREE.PerspectiveCamera(60, 1, 0.01, 20);
+    lamp.position.set(-0.603634, 0.514833, 0.953714);
+    lamp.quaternion.set(-0.191836, 0.0352637, 0.391623, 0.899215);
+    lamp.updateMatrixWorld();
+    this.uniforms.uGoboMatrix.value.multiplyMatrices(
+      lamp.projectionMatrix,
+      lamp.matrixWorldInverse,
+    );
+
+    const quad = (fragmentShader: string, uniforms: Record<string, THREE.IUniform>) => {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2, 2),
+        new THREE.ShaderMaterial({
+          vertexShader: quadVertex,
+          fragmentShader,
+          uniforms,
+          depthTest: false,
+          depthWrite: false,
+        }),
+      );
+      mesh.frustumCulled = false;
+      return mesh;
+    };
+    this.goboScene.add(quad(goboFragment, this.goboUniforms));
+    this.thermalScene.add(
+      quad(thermalFragment, {
+        uScene: { value: this.sceneTarget.texture },
+        uThermalTexture: this.uniforms.uThermalTexture,
+        uThermalAnimation: this.uniforms.uThermalAnimation,
+        uResolution: this.uniforms.uResolution,
+      }),
+    );
   }
 
   async load(
@@ -216,7 +391,20 @@ export class TableScene {
     modelPath: string,
     splatUrl: string,
     tex: (path: string) => THREE.Texture,
+    dataTex: (path: string) => THREE.Texture,
+    reflectionUrl: string,
   ) {
+    const nearest = (path: string) => {
+      const t = dataTex(path);
+      t.minFilter = t.magFilter = THREE.NearestFilter;
+      t.generateMipmaps = false;
+      return t;
+    };
+    this.goboUniforms.uTexture.value = nearest("gobo/gobo_b_0.4630597.avif");
+    const thermalTexture = tex("thermal_gradient.webp");
+    thermalTexture.minFilter = THREE.LinearFilter;
+    thermalTexture.generateMipmaps = false;
+    this.uniforms.uThermalTexture.value = thermalTexture;
     const smooth = (path: string) => {
       const t = tex(path);
       t.anisotropy = 8;
@@ -254,7 +442,7 @@ export class TableScene {
       );
       mesh.renderOrder = -3;
       mesh.frustumCulled = false;
-      this.group.add(mesh);
+      this.surfaces.add(mesh);
     };
     addSurface("DESK", toGeometry(desk));
     addSurface("WALL", toGeometry(wall));
@@ -289,9 +477,37 @@ export class TableScene {
     addCoffee(toGeometry(label), "LABEL");
     addCoffee(toGeometry(cover), "COVER");
 
+    // Steam rising from the lid: a camera-facing card.
+    const smokeHeight = 0.15;
+    const smokeGeometry = new THREE.PlaneGeometry((84 / 184) * smokeHeight, smokeHeight);
+    smokeGeometry.translate(0, 0.5 * smokeHeight, 0);
+    this.smoke = new THREE.Mesh(
+      smokeGeometry,
+      new THREE.ShaderMaterial({
+        vertexShader: smokeVertex,
+        fragmentShader: smokeFragment,
+        transparent: true,
+        depthWrite: false,
+        uniforms: {
+          uBase: { value: nearest("coffee/smoke/base.webp") },
+          uHarmonics0: { value: nearest("coffee/smoke/harmonics_0.webp") },
+          uHarmonics1: { value: nearest("coffee/smoke/harmonics_1.webp") },
+          uTime: this.smokeTime,
+          uThermalTexture: this.uniforms.uThermalTexture,
+          uThermalAnimation: this.uniforms.uThermalAnimation,
+          uResolution: this.uniforms.uResolution,
+        },
+      }),
+    );
+    this.smoke.position.set(-0.0324208, 0.13, -0.0109422);
+    this.smoke.renderOrder = 1;
+    this.coffee.add(this.smoke);
+
     await this.splats.load(splatUrl, renderer);
     if (this.splats.mesh) this.splats.mesh.renderOrder = -2;
-    this.group.add(this.splats);
+    this.surfaces.add(this.splats);
+    await this.reflectionSplats.load(reflectionUrl, renderer);
+    this.reflectionSplats.setLook(0.5, 0.5);
     this.ready = true;
   }
 
@@ -307,8 +523,69 @@ export class TableScene {
     return focal ? fovFromFocal(focal) : undefined;
   }
 
+  /** Advance the swaying window light and the steam. */
+  animate(renderer: THREE.WebGLRenderer, dt: number) {
+    this.goboUniforms.uTime.value += dt * 5;
+    this.smokeTime.value += dt * 2;
+    const previous = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.goboTarget);
+    renderer.render(this.goboScene, this.quadCamera);
+    renderer.setRenderTarget(previous);
+  }
+
+  /** Draw the props' mirror image for the desk shader to pick up. */
+  renderReflection(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
+    renderer.getDrawingBufferSize(this.bufferSize);
+    const { x, y } = this.bufferSize;
+    if (this.reflectionTarget.width !== x || this.reflectionTarget.height !== y) {
+      this.reflectionTarget.setSize(x, y);
+      this.sceneTarget.setSize(x, y);
+    }
+    if (!this.reflectionSplats.mesh) return;
+    this.reflectionSplats.updateMatrixWorld(true);
+    this.reflectionSplats.update(camera);
+    const previous = renderer.getRenderTarget();
+    const scissor = renderer.getScissorTest();
+    renderer.setScissorTest(false);
+    renderer.setRenderTarget(this.reflectionTarget);
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear();
+    renderer.render(this.reflectionSplats, camera);
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(previous);
+    renderer.setScissorTest(scissor);
+  }
+
+  /**
+   * Draw the backdrop (surfaces and props). With the heat camera on, it is drawn to a buffer and
+   * re-coloured on the way to the screen. The caller draws the coaster and cup on top afterwards.
+   */
+  renderBackdrop(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+    if (this.thermalRatio <= 0) {
+      renderer.render(scene, camera);
+      return;
+    }
+    const scissor = renderer.getScissorTest();
+    renderer.setScissorTest(false);
+    renderer.setRenderTarget(this.sceneTarget);
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear();
+    renderer.render(scene, camera);
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(null);
+    renderer.setScissorTest(scissor);
+    renderer.render(this.thermalScene, this.quadCamera);
+  }
+
   /** Call after world matrices are current. */
   update(camera: THREE.Camera, coasterInner: THREE.Object3D) {
+    this.uniforms.uThermalRatio.value = this.thermalRatio;
+    this.uniforms.uThermalAnimation.value = this.thermalAnimation;
+    if (this.smoke) {
+      // Face the camera: undo the cup's own rotation, then take the camera's.
+      this.coffee.getWorldQuaternion(this.q).invert();
+      this.smoke.quaternion.copy(this.q).multiply(camera.quaternion);
+    }
     this.coffee.updateMatrixWorld(true);
     this.uniforms.uCoffeeInv.value.copy(this.coffee.matrixWorld).invert();
     this.uniforms.uCoasterInv.value.copy(coasterInner.matrixWorld).invert();

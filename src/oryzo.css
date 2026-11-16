@@ -1059,28 +1059,31 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 6.2vw 5.6vw var(--oz-pad-y) var(--oz-pad-x);
+  padding: 8.8vw 5.6vw var(--oz-pad-y) var(--oz-pad-x);
   visibility: hidden;
 }
 
 .oz-feat-top {
   display: flex;
-  align-items: center;
-  gap: 1vw;
+  flex-direction: column;
 }
 
 .oz-feat-icon {
-  flex: none;
-  width: 2.6vw;
-  height: 2.6vw;
-  border: 1px dashed rgba(255, 237, 215, 0.8);
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--oz-cream) 0 18%, transparent 20%);
-  transform: scale(var(--in));
+  width: 4.2vw;
+  height: 4.2vw;
+  margin-bottom: 2.5vw;
+  transform: scale(calc(0.6 + 0.4 * var(--in)));
+  transform-origin: 0 50%;
+}
+
+.oz-feat-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .oz-feat-tagline {
-  margin: 0;
+  margin: 0 0 1vw;
   font-size: 1.18vw;
   font-weight: 500;
   line-height: 1.09;
@@ -1089,7 +1092,7 @@
 }
 
 .oz-feat-desc {
-  margin: 2.2vw 0 0;
+  margin: 0;
   font-size: 1.18vw;
   font-weight: 400;
   line-height: 1.333;
@@ -1102,12 +1105,69 @@
 }
 
 .oz-feat-title {
-  margin: 1.2vw 0 0;
+  margin: 0;
+  padding: 1em 0 1.5em;
   font-size: 3.05vw;
   font-weight: 500;
   line-height: 1;
+  text-align: right;
   text-transform: uppercase;
   transform: translateY(calc((1 - var(--in)) * 0.6em));
+}
+
+/* Temperature scale shown with the heat camera. */
+.oz-feat-slider {
+  position: absolute;
+  right: var(--oz-pad-x);
+  top: 50%;
+  height: 50vh;
+  display: flex;
+  gap: 2em;
+  transform: translateY(-50%);
+  font-size: 0.78vw;
+  font-weight: 500;
+  line-height: 1.09;
+  text-transform: uppercase;
+  opacity: var(--feat-slider, 0);
+}
+
+.oz-feat-slider-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+}
+
+.oz-feat-slider-bar {
+  position: relative;
+  width: 9px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    #fdfeed,
+    #ffbf02 17%,
+    #e9500e 32%,
+    #cd197d,
+    #8c019c,
+    #250187,
+    #030310
+  );
+}
+
+.oz-feat-slider-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 4px;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--oz-cream) 0,
+    var(--oz-cream) 1px,
+    transparent 1px,
+    transparent 8px
+  );
 }
 
 .oz-feat-extra {
@@ -1117,8 +1177,10 @@
   bottom: var(--oz-pad-y);
   display: flex;
   align-items: flex-end;
-  gap: 1.6vw;
+  align-items: center;
+  gap: 3em;
   text-align: right;
+  white-space: nowrap;
   visibility: hidden;
 }
 
@@ -1133,12 +1195,18 @@
   display: block;
 }
 
-.oz-feat-extra strong {
-  font-family: "Literata", Georgia, serif;
-  font-size: 1.9vw;
-  font-weight: 400;
-  line-height: 1;
-  white-space: nowrap;
+.oz-feat-equation svg {
+  display: block;
+  height: 2.6vw;
+  width: auto;
+}
+
+.oz-feat-extra:nth-child(2) .oz-feat-equation svg {
+  height: 3.6vw;
+}
+
+.oz-feat-extra:nth-child(3) .oz-feat-equation svg {
+  height: 3.3vw;
 }
 
 /* ---------- Film overlay ---------- */

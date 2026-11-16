@@ -124,6 +124,13 @@ export class OryzoStage {
     uZoomCenter: { value: new THREE.Vector2() },
     uWrapperRatio: { value: 0 },
     uWearableBlend: { value: 0 },
+    // Window light and heat camera exist only on the desk set; filled in once it is created.
+    uGobo: { value: null as THREE.Texture | null },
+    uGoboMatrix: { value: new THREE.Matrix4() },
+    uGoboOpacity: { value: 0 },
+    uThermalTexture: { value: null as THREE.Texture | null },
+    uThermalAnimation: { value: 0 },
+    uResolution: { value: new THREE.Vector2(1, 1) },
   };
   /** Child of the coaster that carries its flight onto the jacket. */
   private coasterInner = new THREE.Object3D();
@@ -448,8 +455,13 @@ export class OryzoStage {
     this.rise.renderOrder = -1;
     this.rise.visible = false;
     this.scene.add(this.rise, this.table.group);
-    await this.table.load(this.renderer, MODEL_PATH, "/oryzo/splats/props.sog", (path) =>
-      tex(path),
+    await this.table.load(
+      this.renderer,
+      MODEL_PATH,
+      "/oryzo/splats/props.sog",
+      (path) => tex(path),
+      dataTex,
+      "/oryzo/splats/table_reflection.sog",
     );
   }
 
@@ -636,7 +648,7 @@ export class OryzoStage {
    * @param a viewport heights into the features section
    * @returns true when it drew the frame
    */
-  private renderTable(rw: number, a: number) {
+  private renderTable(rw: number, a: number, dt: number) {
     // The set's animation clock: 0-3 inside the magazine frame, 3-6 across the features section.
     let t = fit(rw, 10, 10.75, 0, 1);
     t = fit(rw, 10.75, 11.75, t, 2);
@@ -708,12 +720,27 @@ export class OryzoStage {
     u.uWrapperRatio.value = 0;
     u.uWearableBlend.value = 0;
     u.uZoom.value = 1;
+    // Heat camera wipes in for "Thermodynamic stability" and back out before the top-down view.
+    const thermalIn = fit(t, 4.5, 4.6, 0, 1);
+    const thermalOut = fit(t, 5.4, 5.5, 0, 1);
+    table.thermalRatio = thermalIn * (1 - thermalOut);
+    table.thermalAnimation = thermalIn + thermalOut;
+    const light = table.lightUniforms;
+    u.uGobo.value = light.uGobo.value;
+    u.uGoboMatrix.value.copy(light.uGoboMatrix.value);
+    u.uGoboOpacity.value = 1;
+    u.uThermalTexture.value = light.uThermalTexture.value;
+    u.uThermalAnimation.value = table.thermalAnimation;
+    this.renderer.getDrawingBufferSize(u.uResolution.value);
     u.uLocalLight.value
       .copy(table.lightPosition)
       .applyMatrix4(this.m0.copy(this.coasterInner.matrixWorld).invert());
 
     table.group.visible = true;
+    const coffeeVisible = table.coffee.visible;
     table.update(camera, this.coasterInner);
+    table.animate(this.renderer, dt);
+    table.renderReflection(this.renderer, camera);
     this.desk.visible = false;
     if (this.jacket) this.jacket.visible = false;
     if (this.hand) this.hand.visible = false;
@@ -747,7 +774,22 @@ export class OryzoStage {
       this.renderer.setScissor(cx - w / 2, height - (cy + h / 2), w, h);
       this.renderer.setScissorTest(true);
     }
+    // Backdrop first (it may pass through the heat camera), then coaster, cup and title on top.
+    const rise = this.rise;
+    const riseVisible = rise?.visible ?? false;
+    table.surfaces.visible = true;
+    table.coffee.visible = false;
+    this.coaster.visible = false;
+    if (rise) rise.visible = false;
+    table.renderBackdrop(this.renderer, this.scene, camera);
+
+    table.surfaces.visible = false;
+    table.coffee.visible = coffeeVisible;
+    this.coaster.visible = true;
+    if (rise) rise.visible = riseVisible;
+    // Depth from the backdrop is kept so the desk still hides whatever is beneath it.
     this.renderer.render(this.scene, camera);
+    table.surfaces.visible = true;
     this.renderer.setScissorTest(false);
     return true;
   }
@@ -773,7 +815,7 @@ export class OryzoStage {
     if (!this.cameraAnimation || !this.coasterAnimation) return;
     // Once the wearable gallery has taken over, the 3D layer is empty: clear it once and idle.
     const rw = r - 8;
-    if (this.renderTable(rw, r - 21.25)) {
+    if (this.renderTable(rw, r - 21.25, dt)) {
       this.idle = false;
       return;
     }
@@ -793,6 +835,8 @@ export class OryzoStage {
     this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.coasterUniforms.uEnv1.value = this.envHero;
+    this.coasterUniforms.uGoboOpacity.value = 0;
+    this.coasterUniforms.uThermalAnimation.value = 0;
     this.renderer.setScissorTest(false);
 
     const animationRatio = fit(r, 0, 5.5, 0, 1);

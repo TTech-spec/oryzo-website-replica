@@ -3,6 +3,52 @@
 
 export const HAND_BONES = 36;
 
+/**
+ * Window light falling through leaves ("gobo"): a moving shadow texture projected from a fixed
+ * lamp, blurrier the further the surface is from it. Returns 1 in full light.
+ */
+export const goboChunk = /* glsl */ `
+  uniform sampler2D uGobo;
+  uniform mat4 uGoboMatrix;
+  uniform float uGoboOpacity;
+  float goboHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+  float sampleGobo(vec3 worldPosition) {
+    if (uGoboOpacity <= 0.0) return 1.0;
+    vec4 ndc = uGoboMatrix * vec4(worldPosition, 1.0);
+    ndc /= ndc.w;
+    vec2 uv = ndc.xy * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+    // Lamp depth range: near 0.817675, far 1.42218, projected with planes 0.01 / 20.
+    float depth = (2.0 * 0.817675 * 20.0) / (20.0 + 0.817675 - ndc.z * (20.0 - 0.817675));
+    float blur = clamp((depth - 0.817675) / (1.42218 - 0.817675), 0.0, 1.0) * 2.0;
+    float angle = goboHash(gl_FragCoord.xy) * 6.28318530718;
+    vec2 d = vec2(cos(angle), sin(angle));
+    const mat2 rot = mat2(-0.7373688, 0.6754903, -0.6754903, -0.7373688);
+    vec2 s = vec2(1.0 / 512.0) * blur / sqrt(6.0);
+    float sum = 0.0;
+    for (int i = 0; i < 6; i++) {
+      sum += texture2D(uGobo, uv + d * sqrt(float(i + 1)) * s).r;
+      d = rot * d;
+    }
+    return mix(1.0, sum / 6.0, uGoboOpacity);
+  }
+`;
+
+/** Heat-camera look: a diagonal wipe sweeps in as uThermalAnimation goes 0 -> 1 and out 1 -> 2. */
+export const thermalChunk = /* glsl */ `
+  uniform sampler2D uThermalTexture;
+  uniform float uThermalAnimation;
+  uniform vec2 uResolution;
+  float thermalFade() {
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float a = uResolution.x / uResolution.y * 0.2;
+    float l = 1.0 + a;
+    float s = 0.2;
+    float x = uv.y + uv.x * a;
+    return smoothstep(0.0, s, uThermalAnimation * (l + s) - x) * smoothstep(s, 0.0, (uThermalAnimation - 1.0) * (l + s) - x);
+  }
+`;
+
 /** Soft rainbow used for the "Powered by AI" highlight pass. */
 const rainbow = /* glsl */ `
   vec3 rainbow(float t) {
@@ -60,6 +106,8 @@ export const coasterFragment = /* glsl */ `
   uniform float uWearableBlend;
 
   ${rainbow}
+  ${goboChunk}
+  ${thermalChunk}
 
   float dot2(vec2 v) { return dot(v, v); }
   float sdCappedCone(vec2 q, float h, float r1, float r2) {
@@ -157,7 +205,7 @@ export const coasterFragment = /* glsl */ `
     color += rainbow(vModelPosition.z * 16.0 + uTime + 0.5) * 4.0 * uHighlight * albedo * max(0.0, dot(N, L1));
 
     shadow = mix(shadow, 0.6 + 0.4 * shadow, uHeroRatio);
-    color *= shadow * shadow * (0.8 + 0.2 * vAo);
+    color *= shadow * shadow * (0.5 + 0.3 * sampleGobo(vWorldPosition) + 0.2 * vAo);
     color *= mix(1.0, 0.75, uHeroRatio);
     color += mix(0.05, 0.1, uHeroRatio) * albedo;
     color += albedo * 0.4 * uWrapperRatio;
@@ -165,7 +213,11 @@ export const coasterFragment = /* glsl */ `
     vec3 wearableColor = 4.0 * pow(texel, vec3(3.0 - 0.5 * vAo)) * (0.05 + 0.95 * smoothstep(0.0, 0.3, shadow * shadow));
     color = mix(color, wearableColor, uWearableBlend);
 
-    gl_FragColor = vec4(pow(aces(color), vec3(1.0 / 2.2)), 1.0);
+    vec3 display = pow(aces(color), vec3(1.0 / 2.2));
+    // Cork insulates: it reads cool on the heat camera.
+    float luma = dot(display, vec3(0.299, 0.587, 0.114));
+    vec3 thermal = pow(0.1 + texture2D(uThermalTexture, vec2(0.18 + 0.2 * luma, 0.5)).rgb, vec3(2.2));
+    gl_FragColor = vec4(mix(display, thermal, thermalFade()), 1.0);
   }
 `;
 

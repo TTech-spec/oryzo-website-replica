@@ -471,6 +471,14 @@ export class Splats extends THREE.Object3D {
     this.add(this.mesh);
   }
 
+  /** Overall opacity and brightness (used for the dimmed reflection copy). */
+  setLook(opacity: number, colorMultiplier: number) {
+    const uniforms = this.mesh?.material.uniforms;
+    if (!uniforms) return;
+    if (uniforms["opacity"]) uniforms["opacity"].value = opacity;
+    if (uniforms["colorMultiplier"]) uniforms["colorMultiplier"].value = colorMultiplier;
+  }
+
   /** Re-sort back to front whenever the view direction or distance changes. */
   update(camera: THREE.Camera) {
     const mesh = this.mesh;

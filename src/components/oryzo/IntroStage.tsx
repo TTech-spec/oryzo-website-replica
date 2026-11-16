@@ -70,6 +70,9 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       root.dataset["wear"] = active ? "on" : "off";
       if (!active) {
         if (stage) stage.headline.opacity = 0;
+        // Items carry their own visibility, which would otherwise override the hidden layer.
+        for (const item of items)
+          if (item.style.visibility !== "hidden") item.style.visibility = "hidden";
         for (const video of videos) if (video && !video.paused) video.pause();
         return;
       }
@@ -159,6 +162,11 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
         }
       });
       root.style.setProperty("--feat-panel", (cubicOut(first) * (1 - lastOut)).toFixed(4));
+      // The temperature scale belongs to the second feature.
+      root.style.setProperty(
+        "--feat-slider",
+        (fit(a, 2.5, 3.125, 0, 1) * fit(a, 3.875, 4.5, 1, 0)).toFixed(4),
+      );
     };
 
     const applyFrame = ({ r, heroActive }: StageFrame) => {
