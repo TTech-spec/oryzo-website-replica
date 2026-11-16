@@ -22,6 +22,7 @@ This is a personal learning project for studying scroll-driven WebGL storytellin
 - **Social wall**: nine posters wipe open, then travel sideways as you scroll, each picture drifting inside its frame.
 - **Product tiers**: "Choose you own ORYZO". The floating coaster stops tumbling and lies down under the wordmark while the camera lifts; the three tier buttons pop in, and choosing Pro or Pro Max stacks a second and third coaster beneath it. A comparison table follows.
 - **ORYZO-1 paper** and **footer**: the open-weight model write-up with its BibTeX block, then the closing reveal, contact and social links. "Copy URL" works; the newsletter form only validates, because this practice build has no mailing list behind it.
+- **Loading screen**: the coaster drawn as a design sketch on green, with turning dashed circles, orange Bezier handles and a ring that fills as the 3D scene loads, then opens onto the hero.
 - **Footer coffee beans**: a stream of 3D coffee beans spirals diagonally behind the footer. The pointer is a small light that pushes beans aside; beans away from it fade into the dark.
 - **Product extras**: orange design sketches fan out around the product coaster and lean towards the pointer, and the settled coaster blends into the original's product photograph.
 - **Big water bear**: drag the microscope back and forth about ten times; the small water bears wake and a 3D water bear climbs out of the window, turning towards the pointer.

@@ -273,7 +273,10 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       if (cancelled) return;
       stage = new OryzoStage(canvas);
       stage.onFrame = applyFrame;
-      stage.onReady = () => setReady(true);
+      stage.onReady = () => {
+        setReady(true);
+        window.dispatchEvent(new Event("oryzo:ready"));
+      };
       stage.onFlipped = setMessageUp;
       stageRef.current = stage;
     });

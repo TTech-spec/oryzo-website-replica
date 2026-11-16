@@ -3,6 +3,7 @@ import { FlipText } from "@/components/oryzo/FlipText";
 import { IntroStage } from "@/components/oryzo/IntroStage";
 import { ModelPaper } from "@/components/oryzo/ModelPaper";
 import { OryzoLogo } from "@/components/oryzo/OryzoLogo";
+import { Preloader } from "@/components/oryzo/Preloader";
 import { ProductTiers } from "@/components/oryzo/ProductTiers";
 import { SiteFooter } from "@/components/oryzo/SiteFooter";
 import { SocialWall } from "@/components/oryzo/SocialWall";
@@ -16,6 +17,7 @@ export function OryzoPage() {
 
   return (
     <main className="oryzo-page">
+      <Preloader />
       <header className="oz-header">
         <a className="oz-header-logo" href="#intro" aria-label="Oryzo home">
           <OryzoLogo />

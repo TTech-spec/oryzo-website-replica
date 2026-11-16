@@ -2311,3 +2311,19 @@
     transform: none;
   }
 }
+
+/* ---------- Loading screen ---------- */
+
+.oz-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background-color: #4b5c3d;
+  pointer-events: none;
+}
+
+.oz-preloader canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
