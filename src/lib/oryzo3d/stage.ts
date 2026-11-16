@@ -10,6 +10,7 @@ import {
   HAND_BONES,
   handFragment,
   handVertex,
+  headlineFragment,
   jacketFragment,
   propVertex,
 } from "./shaders";
@@ -132,6 +133,22 @@ export class OryzoStage {
   private wrapper?: Wrapper;
   private jacket?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private jacketShow = { value: 0 };
+  private jacketFrameHeight = { value: 0.8 };
+  private headlineMesh?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private headlineUniforms = {
+    uTexture: { value: null as THREE.Texture | null },
+    uRect: { value: new THREE.Vector4() },
+    uFrame: { value: new THREE.Vector4() },
+    uViewport: { value: new THREE.Vector2(1, 1) },
+    uDpr: { value: 1 },
+    uShow: this.jacketShow,
+    uOpacity: { value: 0 },
+  };
+  /**
+   * Where the headline should be drawn, in CSS pixels from the stage's top-left. The page sets
+   * this each frame from its layout; opacity 0 hides it.
+   */
+  headline = { x: 0, y: 0, width: 0, height: 0, opacity: 0 };
 
   private cameraAnimation?: FrameAnimation;
   private coasterAnimation?: FrameAnimation;
@@ -368,7 +385,11 @@ export class OryzoStage {
     this.jacket = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
       new THREE.ShaderMaterial({
-        uniforms: { uTexture: { value: jacketTexture }, uShow: this.jacketShow },
+        uniforms: {
+          uTexture: { value: jacketTexture },
+          uShow: this.jacketShow,
+          uFrameHeight: this.jacketFrameHeight,
+        },
         vertexShader: propVertex,
         fragmentShader: jacketFragment,
         transparent: true,
@@ -377,7 +398,25 @@ export class OryzoStage {
       }),
     );
     this.jacket.visible = false;
-    this.scene2D.add(this.jacket);
+    this.jacket.renderOrder = 11;
+    const headlineTexture = tex("wearable/wearable_text.webp");
+    headlineTexture.minFilter = THREE.LinearFilter;
+    headlineTexture.generateMipmaps = false;
+    this.headlineUniforms.uTexture.value = headlineTexture;
+    this.headlineMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.ShaderMaterial({
+        uniforms: this.headlineUniforms,
+        vertexShader: propVertex,
+        fragmentShader: headlineFragment,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    this.headlineMesh.renderOrder = 10;
+    this.headlineMesh.visible = false;
+    this.scene2D.add(this.headlineMesh, this.jacket);
     this.coasterFlight = new FrameAnimation(
       await loadBuf(MODEL_PATH + "wearable/coaster_first.buf"),
     );
@@ -557,6 +596,31 @@ export class OryzoStage {
       this.jacketShow.value = fit(t, 2, 2.8, 0, 1);
       const height = this.height * 0.8;
       this.jacket.scale.set((height * 85) / 110, height, 1);
+    }
+    if (this.headlineMesh) {
+      const { x, y, width, opacity } = this.headline;
+      this.headlineMesh.visible = opacity > 0 && width > 0;
+      if (this.headlineMesh.visible) {
+        // The texture's text block is 7.311:1; fit it to the measured width, centred on the box.
+        const w = width;
+        const h = width / 7.311;
+        const top = y + this.headline.height / 2 - h / 2;
+        // Cover the whole stage so blurred taps can land outside the text box.
+        this.headlineMesh.scale.set(this.width, this.height, 1);
+        const u = this.headlineUniforms;
+        u.uRect.value.set(x, top, w, h);
+        const frameHeight = this.height * 0.8;
+        const frameWidth = (frameHeight * 85) / 110;
+        u.uFrame.value.set(
+          (this.width - frameWidth) / 2,
+          (this.height - frameHeight) / 2,
+          frameWidth,
+          frameHeight,
+        );
+        u.uViewport.value.set(this.width, this.height);
+        u.uDpr.value = this.renderer.getPixelRatio();
+        u.uOpacity.value = opacity;
+      }
     }
     return {
       zoom,

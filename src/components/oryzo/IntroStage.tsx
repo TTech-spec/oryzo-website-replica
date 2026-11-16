@@ -60,6 +60,7 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
     const inners = items.map((item) => item.querySelector<HTMLElement>(".oz-wear-item-inner"));
     const videos = items.map((item) => item.querySelector("video"));
     const last = WEARABLE_ITEMS.length - 1;
+    const big = root.querySelector<HTMLElement>(".oz-wear-big");
 
     // The wearable gallery runs on its own clock: rw is viewport heights since it scrolled into view.
     const applyWearable = (rw: number) => {
@@ -68,13 +69,26 @@ export function IntroStage({ onPlayFilm }: { onPlayFilm: () => void }) {
       const active = rw > 0 && hide < 1;
       root.dataset["wear"] = active ? "on" : "off";
       if (!active) {
+        if (stage) stage.headline.opacity = 0;
         for (const video of videos) if (video && !video.paused) video.pause();
         return;
       }
       set("--wear-hide", hide);
       set("--wear-label", rw - 0.5);
       set("--wear-big-x", fit(rw, 1, 2, 100, 0));
-      set("--wear-big-on", rw >= 1 ? 1 : 0);
+      // The headline is drawn by the 3D layer while it moves (so it can break up behind the
+      // photo); the real text element takes over once it has settled into the title.
+      const settled = rw >= 4.75;
+      set("--wear-big-on", settled ? 1 : 0);
+      if (stage && big) {
+        const box = big.getBoundingClientRect();
+        const origin = root.querySelector(".oz-stage")?.getBoundingClientRect();
+        stage.headline.x = box.left - (origin?.left ?? 0);
+        stage.headline.y = box.top - (origin?.top ?? 0);
+        stage.headline.width = box.width;
+        stage.headline.height = box.height;
+        stage.headline.opacity = rw >= 1 && !settled ? 1 : 0;
+      }
       set("--wear-shrink", fit(rw, 3.25, 4.75, 0, 1, cubicInOut));
       set("--frame-show", fit(rw, 0, 1, 0, 1));
       set("--frame-scale", fit(rw, 2.2, 3.4, 0, 1, cubicInOut));

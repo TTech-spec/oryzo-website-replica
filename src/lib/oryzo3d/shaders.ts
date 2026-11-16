@@ -471,16 +471,78 @@ export const wrapperFragment = /* glsl */ `
 
 // ---------- Wearable intro: the jacket photo the coaster lands on ----------
 
+// Shared by the jacket photo and the headline: how strongly the picture behind the frame is
+// smeared at a point. Sharp around the coaster's landing spot, grainy and blurred further out,
+// clearing as the photo finishes arriving.
+const frameBlur = /* glsl */ `
+  float linearstep(float a, float b, float v) { return clamp((v - a) / (b - a), 0.0, 1.0); }
+  // dist: distance from the landing spot, in viewport heights. show: 0..1 arrival of the photo.
+  float frameBlur(float dist, float show) {
+    float b = linearstep(0.15, 0.2 + show * 0.6, dist);
+    return b * b * (1.0 - show);
+  }
+`;
+
 export const jacketFragment = /* glsl */ `
   uniform sampler2D uTexture;
   uniform float uShow;
+  uniform float uFrameHeight;
   varying vec2 vUv;
+  ${frameBlur}
   void main() {
-    // Reveal opens from the coaster's landing spot outwards, soft at the edge.
-    vec2 centre = vec2(0.5, 0.643);
-    float dist = length((vUv - centre) * vec2(850.0, 1100.0)) / 1100.0;
-    float reveal = smoothstep(uShow * 1.4, uShow * 1.4 - 0.25, dist);
-    vec3 color = texture2D(uTexture, vUv).rgb;
-    gl_FragColor = vec4(color, reveal * smoothstep(0.0, 0.3, uShow));
+    float dist = length((vUv - vec2(0.5, 0.679)) * vec2(850.0 / 1100.0, 1.0)) * uFrameHeight;
+    float blur = frameBlur(dist, uShow);
+    float opacity = linearstep(0.0, 0.3, uShow);
+    float blend = smoothstep(blur * 0.25, 1.0 + blur * 0.25, opacity * 1.25);
+    gl_FragColor = vec4(texture2D(uTexture, vUv).rgb, blend);
+  }
+`;
+
+// The "it's wearable" headline, drawn from a distance-field texture. Inside the photo frame it
+// is sampled through a noisy blur, so it appears to break up into grain as the photo arrives.
+export const headlineFragment = /* glsl */ `
+  uniform sampler2D uTexture;
+  uniform vec4 uRect;
+  uniform vec4 uFrame;
+  uniform vec2 uViewport;
+  uniform float uDpr;
+  uniform float uShow;
+  uniform float uOpacity;
+  ${frameBlur}
+  const vec2 SCALE_FIX = vec2(0.9913, 0.9001);
+  float median(float r, float g, float b) { return max(min(r, g), min(max(r, g), b)); }
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+  // x: glyph coverage, y: soft halo around the glyphs.
+  vec2 textAt(vec2 px) {
+    vec2 uv = (px - uRect.xy) / uRect.zw;
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec2(0.0);
+    uv.y = 1.0 - uv.y;
+    vec3 msdf = texture2D(uTexture, (uv - 0.5) * SCALE_FIX + 0.5).rgb;
+    float sd = median(msdf.r, msdf.g, msdf.b);
+    float range = 4.0 * uRect.z / (458.0 * SCALE_FIX.x);
+    return vec2(clamp((sd - 0.5) * range + 0.5, 0.0, 1.0), smoothstep(0.05, 0.5, sd));
+  }
+  void main() {
+    vec2 px = vec2(gl_FragCoord.x, uViewport.y * uDpr - gl_FragCoord.y) / uDpr;
+    vec2 result = textAt(px);
+    bool inFrame = px.x > uFrame.x && px.y > uFrame.y && px.x < uFrame.x + uFrame.z && px.y < uFrame.y + uFrame.w;
+    if (inFrame && uShow > 0.0) {
+      vec2 centre = uFrame.xy + uFrame.zw * vec2(0.5, 0.321);
+      float blur = frameBlur(length(px - centre) / uViewport.y, uShow);
+      float radius = blur * linearstep(0.0, 0.3, uShow) * 0.0632 * uViewport.y;
+      if (radius > 0.5) {
+        // Golden-angle disc of taps, rotated per pixel so the blur resolves as grain.
+        float angle = hash(gl_FragCoord.xy) * 6.28318;
+        vec2 sum = vec2(0.0);
+        for (int i = 0; i < 8; i++) {
+          float r = sqrt((float(i) + 0.5) / 8.0) * radius;
+          sum += textAt(px + vec2(cos(angle), sin(angle)) * r);
+          angle += 2.39996323;
+        }
+        result = sum / 8.0;
+      }
+    }
+    float alpha = max(result.x, result.y * 0.22) * uOpacity;
+    gl_FragColor = vec4(1.0, 0.929, 0.843, alpha);
   }
 `;
